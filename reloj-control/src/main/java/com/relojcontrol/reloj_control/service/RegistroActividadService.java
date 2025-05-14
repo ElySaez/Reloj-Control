@@ -12,6 +12,9 @@ public class RegistroActividadService {
         this.repo = repo;
     }
 
+    /**
+     * Registra las acciones realizadas por un usuario
+     */
     public void log(Integer idUsuario,
                     String accion,
                     String modulo,
