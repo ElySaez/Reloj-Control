@@ -1,25 +1,32 @@
-# ignore all idea settings
-.idea/*
+reloj-control/HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
 *.iws
 *.iml
 *.ipr
 
-# gradle project minimum
-!.idea/gradle.xml
-!.idea/misc.xml
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-# enable plugin dependencies
-!.idea/externalDependencies.xml
-
-# enable codestyle, with save actions
-!.idea/codeStyles
-!.idea/saveactions_settting.xml
-
-# enable inspection rules
-!.idea/inspectionProfiles
-
-# enable annotation processor for lombok plugin
-!.idea/compiler.xml
-
-# enable checkstyle ide
-!.idea/checkstyle-idea.xml
+### VS Code ###
+.vscode/
