@@ -1,19 +1,22 @@
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
+import Navbar from './components/Navbar'
+import Home from './pages/Home'
 import Importar from './pages/Importar'
-import Resumen   from './pages/Resumen'
+import Resumen from './pages/Resumen'
+import Justificaciones from './pages/Justificaciones'
 
 export default function App() {
     return (
-        <>
-            <nav>
-                <Link to="/importar">Importar</Link>
-                <Link to="/resumen">Resumen</Link>
-            </nav>
-            <Routes>
-                <Route path="/importar" element={<Importar />} />
-                <Route path="/resumen"   element={<Resumen />} />
-                <Route path="*"          element={<Importar />} />
-            </Routes>
-        </>
+        <div className="min-vh-100 d-flex flex-column bg-dark text-white">
+            <Navbar />
+            <main className="flex-grow-1">
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/importar" element={<Importar />} />
+                    <Route path="/resumen" element={<Resumen />} />
+                    <Route path="/justificaciones" element={<Justificaciones />} />
+                </Routes>
+            </main>
+        </div>
     )
 }
