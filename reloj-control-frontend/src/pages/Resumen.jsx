@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getResumen, getResumenMensual } from '../api/index'
+import { getResumen, getResumenMensual, actualizarEstadoAsistencia } from '../api/index'
 
 export default function Resumen() {
     // Inicializar con una fecha predeterminada en formato correcto
@@ -10,6 +10,8 @@ export default function Resumen() {
     const [data, setData] = useState([])
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [savingState, setSavingState] = useState(false) // Para indicar cambios de estado en proceso
+    const [savingStateId, setSavingStateId] = useState(null)
     
     // Nuevos estados para filtro por mes y año
     const mesActual = new Date().getMonth() + 1;
@@ -18,14 +20,23 @@ export default function Resumen() {
     const [año, setAño] = useState(añoActual.toString())
     const [usarFiltroMensual, setUsarFiltroMensual] = useState(false)
 
-    // Función para buscar datos con mejor manejo de errores
+    // Función para buscar datos con mejor manejo de errores y más opciones de filtrado
     const fetchData = async () => {
         setLoading(true)
         setError('')
+        setData([]) // Limpiar datos anteriores
         
         try {
+            // Verificar que el RUT tenga al menos 4 caracteres si no está vacío
+            if (rut && !validarRutMinimo(rut)) {
+                setError('El RUT debe tener al menos 4 dígitos para realizar la búsqueda');
+                setLoading(false);
+                return;
+            }
+            
             console.log('Estado usarFiltroMensual:', usarFiltroMensual);
-            console.log('Parámetros a usar - mes:', mes, 'año:', año, 'rut:', rut);
+            
+            let respuesta = null;
             
             if (usarFiltroMensual && mes && año) {
                 console.log('Consultando con filtro mensual:', {
@@ -35,19 +46,17 @@ export default function Resumen() {
                 });
                 
                 try {
-                    // Usar el nuevo endpoint específico para filtro mensual
-                    const response = await getResumenMensual(
+                    // Usar el endpoint específico para filtro mensual
+                    respuesta = await getResumenMensual(
                         mes,
                         año,
                         rut || undefined
                     );
-                    
-                    console.log('Respuesta (filtro mensual):', response);
-                    setData(response || []);
                 } catch (mensualError) {
                     console.error('Error en filtro mensual:', mensualError);
                     setError(`Error al consultar por mes y año: ${mensualError.message}`);
-                    setData([]);
+                    setLoading(false);
+                    return;
                 }
             } else if (fechaInicio) {
                 // Usar filtro por rango de fechas
@@ -62,23 +71,46 @@ export default function Resumen() {
                 
                 try {
                     // Usar el método normal con fechas
-                    const response = await getResumen(
+                    respuesta = await getResumen(
                         inicioParam,
                         finParam,
                         rut || undefined
                     );
-
-                    console.log('Respuesta (rango fechas):', response);
-                    setData(response || []);
                 } catch (rangoError) {
                     console.error('Error en rango de fechas:', rangoError);
                     setError(`Error al consultar por rango de fechas: ${rangoError.message}`);
-                    setData([]);
+                    setLoading(false);
+                    return;
                 }
             } else {
                 setError('Debe proporcionar una fecha de inicio o seleccionar mes y año');
                 setLoading(false);
                 return;
+            }
+            
+            console.log('Respuesta recibida:', respuesta);
+            
+            // Procesar y ordenar los resultados
+            if (Array.isArray(respuesta) && respuesta.length > 0) {
+                // Establecer estado AUTORIZADO por defecto si no está definido
+                const datosConEstadoDefecto = respuesta.map(item => ({
+                    ...item,
+                    estado: item.estado || 'AUTORIZADO'
+                }));
+                
+                // Ordenar por fecha y nombre
+                datosConEstadoDefecto.sort((a, b) => {
+                    const fechaComp = a.fecha.localeCompare(b.fecha);
+                    if (fechaComp === 0) {
+                        return a.nombre.localeCompare(b.nombre);
+                    }
+                    return fechaComp;
+                });
+                
+                setData(datosConEstadoDefecto);
+            } else {
+                setData([]);
+                setError('No se encontraron resultados para los filtros seleccionados');
             }
         } catch (err) {
             console.error('Error general:', err);
@@ -91,12 +123,20 @@ export default function Resumen() {
 
     // Efecto para cargar datos cuando se monta el componente
     useEffect(() => {
-        fetchData();
+        // No cargamos datos automáticamente al montar el componente
+        // Dejamos que el usuario inicie la búsqueda
     }, []);
 
     // Solo ejecutar búsqueda cuando el usuario haga clic en buscar, no en cada cambio
     const handleBuscar = (e) => {
         e.preventDefault();
+        
+        // Verificar que el RUT tenga al menos 4 caracteres si no está vacío
+        if (rut && !validarRutMinimo(rut)) {
+            setError('El RUT debe tener al menos 4 dígitos para realizar la búsqueda');
+            return;
+        }
+        
         console.log('Botón buscar presionado, usarFiltroMensual:', usarFiltroMensual);
         console.log('Valores del formulario - mes:', mes, 'año:', año, 'rut:', rut);
         fetchData();
@@ -125,6 +165,15 @@ export default function Resumen() {
         }
         
         return rutLimpio
+    }
+
+    // Validar que el RUT tenga al menos 4 caracteres para buscar
+    const validarRutMinimo = (rutValue) => {
+        if (!rutValue) return true; // Si está vacío, es válido (no se filtra por RUT)
+        
+        // Quitar puntos y guiones para contar solo dígitos
+        const rutLimpio = rutValue.replace(/[^0-9kK]/g, '');
+        return rutLimpio.length >= 4;
     }
 
     const formatearHorasExtras = (minutos25 = 0, minutos50 = 0) => {
@@ -171,6 +220,33 @@ export default function Resumen() {
                 return 'bg-warning'
             default:
                 return 'bg-secondary'
+        }
+    }
+
+    // Función para manejar el cambio de estado
+    const handleEstadoChange = async (id, nuevoEstado) => {
+        try {
+            setSavingState(true)
+            setSavingStateId(id)
+            await actualizarEstadoAsistencia(id, nuevoEstado)
+            
+            // Actualizar el estado en los datos locales
+            const newData = data.map(item => {
+                if (item.idAsistencia === id) {
+                    return { ...item, estado: nuevoEstado }
+                }
+                return item
+            })
+            setData(newData)
+            
+            // Mostrar mensaje de éxito
+            setError('')
+        } catch (err) {
+            console.error('Error al cambiar el estado:', err)
+            setError(`Error al actualizar el estado: ${err.message}`)
+        } finally {
+            setSavingState(false)
+            setSavingStateId(null)
         }
     }
 
@@ -232,8 +308,8 @@ export default function Resumen() {
                                             </div>
                                             <div className="col-md-3">
                                                 <div className="form-floating">
-                                                    <input
-                                                        type="date"
+                <input
+                    type="date"
                                                         className="form-control"
                                                         id="fechaFin"
                                                         value={fechaFin}
@@ -323,72 +399,227 @@ export default function Resumen() {
                                         <span className="visually-hidden">Cargando...</span>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="table-responsive">
-                                    <table className="table table-hover align-middle">
-                                        <thead className="table-light">
-                                            <tr>
-                                                <th>Nombre</th>
-                                                <th>RUT</th>
-                                                <th>Entrada</th>
-                                                <th>Salida real</th>
-                                                <th>Salida esperada</th>
-                                                <th className="text-end">Horas Extras</th>
-                                                <th className="text-center">Estado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data && data.length > 0 ? (
-                                                data.map((registro, index) => (
-                                                    <tr key={index}>
-                                                        <td>{registro.nombre}</td>
-                                                        <td>{registro.rut}</td>
-                                                        <td>
-                                                            <span className="badge bg-success bg-opacity-10 text-success">
-                                                                {registro.entrada}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            {registro.salida ? (
-                                                                <span className="badge bg-primary bg-opacity-10 text-primary">
-                                                                    {registro.salida}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="badge bg-secondary bg-opacity-10 text-secondary">
-                                                                    Pendiente
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            <span className="badge bg-info bg-opacity-10 text-info">
-                                                                {registro.salidaEsperada}
-                                                            </span>
-                                                        </td>
-                                                        <td className="text-end">
-                                                            {registro.horasExtras || '00:00'}
-                                                        </td>
-                                                        <td className="text-center">
-                                                            <span className={`badge ${
-                                                                registro.estado === 'AUTORIZADO' 
-                                                                    ? 'bg-success' 
-                                                                    : registro.estado === 'RECHAZADO' 
-                                                                        ? 'bg-danger' 
-                                                                        : 'bg-warning'
-                                                            }`}>
-                                                                {registro.estado || 'PENDIENTE'}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
+                            ) : data && data.length > 0 ? (
+                                <div>
+                                    {/* Información del empleado */}
+                                    <div className="card mb-4 bg-light">
+                                        <div className="card-body">
+                                            <div className="row">
+                                                <div className="col-md-6">
+                                                    <h5 className="card-title">Empleado</h5>
+                                                    <p className="card-text"><strong>Nombre:</strong> {data[0].nombre}</p>
+                                                    <p className="card-text"><strong>RUT:</strong> {data[0].rut}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Tabla de asistencias */}
+                                    <div className="table-responsive mb-4">
+                                        <table className="table table-hover align-middle">
+                                            <thead className="table-light">
                                                 <tr>
-                                                    <td colSpan="7" className="text-center text-muted py-4">
-                                                        No hay registros para mostrar
-                                                    </td>
+                                                    <th>Fecha</th>
+                                                    <th>Entrada</th>
+                                                    <th>Salida real</th>
+                                                    <th>Salida esperada</th>
+                                                    <th className="text-end">H.E. 25%</th>
+                                                    <th className="text-end">H.E. 50%</th>
+                                                    <th className="text-center">Estado</th>
+                                                    <th>Observaciones</th>
                                                 </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {data.map((registro, index) => {
+                                                    // Asegurar que el estado sea AUTORIZADO por defecto
+                                                    registro.estado = registro.estado || 'AUTORIZADO';
+                                                    
+                                                    // Convertir minutos a formato horas:minutos
+                                                    const horasExtra25 = registro.minutosExtra25 > 0 
+                                                        ? `${String(Math.floor(registro.minutosExtra25 / 60)).padStart(2, '0')}:${String(registro.minutosExtra25 % 60).padStart(2, '0')}`
+                                                        : '00:00';
+                                                    
+                                                    const horasExtra50 = registro.minutosExtra50 > 0 
+                                                        ? `${String(Math.floor(registro.minutosExtra50 / 60)).padStart(2, '0')}:${String(registro.minutosExtra50 % 60).padStart(2, '0')}`
+                                                        : '00:00';
+                                                    
+                                                    return (
+                                                        <tr key={index}>
+                                                            <td>
+                                                                <span className="badge bg-light text-dark">
+                                                                    {registro.fecha}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span className="badge bg-success bg-opacity-10 text-success">
+                                                                    {registro.entrada}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                {registro.salida ? (
+                                                                    <span className="badge bg-primary bg-opacity-10 text-primary">
+                                                                        {registro.salida}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="badge bg-secondary bg-opacity-10 text-secondary">
+                                                                        Pendiente
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <span className="badge bg-info bg-opacity-10 text-info">
+                                                                    {registro.salidaEsperada}
+                                                                </span>
+                                                            </td>
+                                                            <td className="text-end">
+                                                                {horasExtra25}
+                                                            </td>
+                                                            <td className="text-end">
+                                                                {horasExtra50}
+                                                            </td>
+                                                            <td className="text-center">
+                                                                {savingState && registro.idAsistencia === savingStateId ? (
+                                                                    <div className="spinner-border spinner-border-sm text-primary" role="status">
+                                                                        <span className="visually-hidden">Guardando...</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <select 
+                                                                        className={`form-select form-select-sm w-auto mx-auto ${
+                                                                            registro.estado === 'AUTORIZADO' 
+                                                                                ? 'text-success border-success' 
+                                                                                : registro.estado === 'RECHAZADO' 
+                                                                                    ? 'text-danger border-danger' 
+                                                                                    : 'text-warning border-warning'
+                                                                        }`}
+                                                                        value={registro.estado || 'AUTORIZADO'}
+                                                                        onChange={(e) => handleEstadoChange(registro.idAsistencia, e.target.value)}
+                                                                    >
+                                                                        <option value="AUTORIZADO">AUTORIZADO</option>
+                                                                        <option value="RECHAZADO">RECHAZADO</option>
+                                                                        <option value="PENDIENTE">PENDIENTE</option>
+                                                                    </select>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <small className="text-muted">
+                                                                    {registro.observaciones || ''}
+                                                                </small>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    {/* Resumen de horas extras */}
+                                    <div className="card mb-4">
+                                        <div className="card-header bg-primary text-white">
+                                            Resumen de Horas Extras
+            </div>
+                                        <div className="table-responsive">
+                                            <table className="table mb-0">
+                <thead>
+                                                    <tr className="table-light">
+                                                        <th>Estado</th>
+                                                        <th className="text-center">H.E. 25%</th>
+                                                        <th className="text-center">H.E. 50%</th>
+                                                        <th className="text-center">Total</th>
+                </tr>
+                </thead>
+                <tbody>
+                                                    {/* Calcular resumen por estado */}
+                                                    {(() => {
+                                                        // Agrupar por estado y calcular totales
+                                                        const resumen = {
+                                                            AUTORIZADO: { minutos25: 0, minutos50: 0 },
+                                                            RECHAZADO: { minutos25: 0, minutos50: 0 },
+                                                            PENDIENTE: { minutos25: 0, minutos50: 0 }
+                                                        };
+                                                        
+                                                        // Total general de todas las horas extras
+                                                        let totalGeneral25 = 0;
+                                                        let totalGeneral50 = 0;
+                                                        
+                                                        data.forEach(registro => {
+                                                            // Asegurar que siempre haya un estado válido
+                                                            const estado = registro.estado || 'AUTORIZADO';
+                                                            
+                                                            // Asegurar que los valores de minutos sean números
+                                                            const minutos25 = parseInt(registro.minutosExtra25 || 0);
+                                                            const minutos50 = parseInt(registro.minutosExtra50 || 0);
+                                                            
+                                                            if (resumen[estado]) {
+                                                                resumen[estado].minutos25 += minutos25;
+                                                                resumen[estado].minutos50 += minutos50;
+                                                            }
+                                                            
+                                                            // Sumar al total general
+                                                            totalGeneral25 += minutos25;
+                                                            totalGeneral50 += minutos50;
+                                                        });
+                                                        
+                                                        // Convertir minutos a formato horas:minutos:segundos
+                                                        const formatearTiempo = (minutos) => {
+                                                            if (minutos === 0) return '00:00:00';
+                                                            const horas = Math.floor(Math.abs(minutos) / 60);
+                                                            const mins = Math.abs(minutos) % 60;
+                                                            return `${minutos < 0 ? '-' : ''}${String(horas).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
+                                                        };
+                                                        
+                                                        return (
+                                                            <>
+                                                                <tr>
+                                                                    <td>Aprobadas</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos25)}</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos50)}</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.AUTORIZADO.minutos25 + resumen.AUTORIZADO.minutos50)}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>Rechazadas</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos25)}</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos50)}</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.RECHAZADO.minutos25 + resumen.RECHAZADO.minutos50)}</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>Pendientes</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos25)}</td>
+                                                                    <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos50)}</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.PENDIENTE.minutos25 + resumen.PENDIENTE.minutos50)}</td>
+                                                                </tr>
+                                                                <tr className="table-primary">
+                                                                    <td className="fw-bold">Total General</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral25)}</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral50)}</td>
+                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral25 + totalGeneral50)}</td>
+                                                                </tr>
+                                                            </>
+                                                        );
+                                                    })()}
+                </tbody>
+            </table>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Botones de exportación */}
+                                    <div className="row mb-2">
+                                        <div className="col">
+                                            <button className="btn btn-success w-100">
+                                                <i className="bi bi-file-pdf me-2"></i> DESCARGAR PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="row">
+                                        <div className="col">
+                                            <button className="btn btn-success w-100">
+                                                <i className="bi bi-file-excel me-2"></i> DESCARGAR EXCEL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="alert alert-info text-center">
+                                    No hay registros para mostrar
                                 </div>
                             )}
                         </div>

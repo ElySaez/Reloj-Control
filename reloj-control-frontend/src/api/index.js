@@ -9,23 +9,8 @@ const hacerPeticionGet = async (url) => {
     return response.json();
 };
 
-export const getResumen = async (fechaInicio, fechaFin, rut, mes, año) => {
+export const getResumen = async (fechaInicio, fechaFin, rut) => {
     try {
-        // Si tenemos mes y año, calcular las fechas de inicio y fin del mes
-        if (mes && año) {
-            const mesNum = parseInt(mes);
-            const añoNum = parseInt(año);
-            
-            // El mes en JavaScript es 0-indexed (0 = enero, 11 = diciembre)
-            const primerDiaMes = new Date(añoNum, mesNum - 1, 1);
-            const ultimoDiaMes = new Date(añoNum, mesNum, 0);
-            
-            fechaInicio = primerDiaMes.toISOString().split('T')[0]; // formato yyyy-MM-dd
-            fechaFin = ultimoDiaMes.toISOString().split('T')[0]; // formato yyyy-MM-dd
-            
-            console.log(`Usando mes ${mes} y año ${año} => Fechas: ${fechaInicio} a ${fechaFin}`);
-        }
-        
         // Validar fecha inicio (siempre requerida por el backend)
         if (!fechaInicio) {
             throw new Error('La fecha de inicio es requerida');
@@ -70,39 +55,22 @@ export const getResumen = async (fechaInicio, fechaFin, rut, mes, año) => {
 
         console.log('URL de petición:', url);
         
-        // Opciones de fetch para manejar respuestas JSON
-        const fetchOptions = {
+        // Realizar la petición con el API nativo fetch
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json'
             }
-        };
+        });
         
-        // Realizar la petición con timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
-        
-        try {
-            const response = await fetch(url, { 
-                ...fetchOptions,
-                signal: controller.signal 
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            return Array.isArray(data) ? data : [];
-        } catch (fetchError) {
-            if (fetchError.name === 'AbortError') {
-                throw new Error('La petición ha tomado demasiado tiempo en responder');
-            }
-            throw fetchError;
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
         }
+        
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+        
     } catch (error) {
         console.error('Error en getResumen:', error);
         throw error;
@@ -139,44 +107,22 @@ export const getResumenMensual = async (mes, año, rut) => {
         
         console.log('URL de petición resumen mensual:', url);
         
-        // Opciones de fetch
-        const fetchOptions = {
+        // Realizar la petición con el API nativo fetch
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json'
             }
-        };
+        });
         
-        // Realizar la petición con timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
-        
-        try {
-            console.log('Iniciando fetch a:', url);
-            const response = await fetch(url, { 
-                ...fetchOptions,
-                signal: controller.signal 
-            });
-            
-            clearTimeout(timeoutId);
-            console.log('Respuesta del servidor recibida. Status:', response.status);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Error en la respuesta:', errorText);
-                throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            console.log('Datos recibidos del servidor:', data);
-            return Array.isArray(data) ? data : [];
-        } catch (fetchError) {
-            console.error('Error durante fetch:', fetchError);
-            if (fetchError.name === 'AbortError') {
-                throw new Error('La petición ha tomado demasiado tiempo en responder');
-            }
-            throw fetchError;
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
         }
+        
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+        
     } catch (error) {
         console.error('Error en getResumenMensual:', error);
         throw error;
@@ -229,4 +175,30 @@ export const importarArchivo = async (file) => {
         console.error('Error en importarArchivo:', error)
         throw error
     }
-} 
+}
+
+// Función para actualizar el estado de una asistencia
+export const actualizarEstadoAsistencia = async (id, estado) => {
+    try {
+        const url = `${API_URL}/asistencias/estado/${id}?estado=${encodeURIComponent(estado)}`;
+        
+        console.log('Actualizando estado:', url);
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
+        }
+        
+        return await response.text();
+    } catch (error) {
+        console.error("Error al actualizar el estado de la asistencia:", error);
+        throw error;
+    }
+}; 
