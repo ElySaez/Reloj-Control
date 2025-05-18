@@ -31,7 +31,7 @@ public class ImportController {
 
             // 2) Grabas el log
             // — Porahora se coloca un userId fijo, luego se cambia por la lógica real:
-            Integer userId = 1;
+            Integer userId = 40;
             String ip      = request.getRemoteAddr();
 
             logService.log(

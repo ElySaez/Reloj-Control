@@ -2,11 +2,38 @@ package com.relojcontrol.reloj_control.repository;
 
 import com.relojcontrol.reloj_control.model.Asistencia;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
     // busca todas las marcas entre dos instantes
-    List<Asistencia> findByFechaHoraBetween(LocalDateTime start, LocalDateTime end);
-    List<Asistencia> findByEmpleado_IdEmpleado(Long empleadoId);
+    @Query("SELECT a FROM Asistencia a WHERE DATE(a.fechaHora) = :fecha")
+    List<Asistencia> findAllByFecha(@Param("fecha") LocalDate fecha);
+    
+    @Query("SELECT a FROM Asistencia a WHERE a.fechaHora BETWEEN :desde AND :hasta")
+    List<Asistencia> findAllByFechaHoraBetween(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
+    
+    List<Asistencia> findAllByEmpleadoIdEmpleado(Long empleadoId);
+    
+    // Busca todas las marcas de un empleado por RUT
+    @Query("SELECT a FROM Asistencia a WHERE a.empleado.rut = :rut")
+    List<Asistencia> findAllByEmpleadoRut(@Param("rut") String rut);
+    
+    // Busca todas las marcas de un empleado por RUT entre dos fechas
+    @Query("SELECT a FROM Asistencia a WHERE a.empleado.rut = :rut AND a.fechaHora BETWEEN :desde AND :hasta")
+    List<Asistencia> findAllByEmpleadoRutAndFechaBetween(
+        @Param("rut") String rut,
+        @Param("desde") LocalDateTime desde,
+        @Param("hasta") LocalDateTime hasta
+    );
+    
+    // Busca todas las marcas de un empleado por ID entre dos fechas
+    List<Asistencia> findAllByEmpleadoIdEmpleadoAndFechaHoraBetween(
+        Long empleadoId,
+        LocalDateTime inicio,
+        LocalDateTime fin
+    );
 }

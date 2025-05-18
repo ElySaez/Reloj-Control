@@ -6,8 +6,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 @Service
-public class RegistroActividadService {
+public class RegistroActividadService implements IRegistroActividadService {
     private final RegistroActividadRepository repo;
+    
     public RegistroActividadService(RegistroActividadRepository repo) {
         this.repo = repo;
     }
@@ -15,6 +16,7 @@ public class RegistroActividadService {
     /**
      * Registra las acciones realizadas por un usuario
      */
+    @Override
     public void log(Integer idUsuario,
                     String accion,
                     String modulo,

@@ -4,19 +4,17 @@ import com.relojcontrol.reloj_control.repository.ParametroSistemaRepository;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ParametroSistemaService {
+public class ParametroSistemaService implements IParametroSistemaService {
     private final ParametroSistemaRepository repo;
 
     public ParametroSistemaService(ParametroSistemaRepository repo) {
         this.repo = repo;
     }
 
-    /** Devuelve el valor (string) de un parámetro o lanza error si falta */
+    @Override
     public String getValor(String clave) {
         return repo.findByClave(clave)
-                .map(p -> p.getValor())
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "Parámetro de sistema faltante: " + clave));
+                .orElseThrow(() -> new IllegalArgumentException("Parámetro no encontrado: " + clave))
+                .getValor();
     }
 }
