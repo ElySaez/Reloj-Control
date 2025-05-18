@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * Servicio para gestionar las asistencias de los empleados.
@@ -131,54 +132,7 @@ public class AsistenciaService implements IAsistenciaService {
     @Transactional(readOnly = true)
     public List<ResumenAsistenciaDTO> resumenPorDia(LocalDate dia) {
         List<Asistencia> asistencias = repo.findAllByFecha(dia);
-        
-        // Agrupar por empleado
-        Map<Long, List<Asistencia>> asistenciasPorEmpleado = asistencias.stream()
-            .collect(Collectors.groupingBy(a -> a.getEmpleado().getIdEmpleado()));
-
-        List<ResumenAsistenciaDTO> resumen = new ArrayList<>();
-        
-        asistenciasPorEmpleado.forEach((empleadoId, asistenciasEmpleado) -> {
-            // Encontrar la primera entrada y última salida del día
-            Asistencia entrada = asistenciasEmpleado.stream()
-                .filter(a -> "ENTRADA".equals(a.getTipo()))
-                .min((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
-                .orElse(null);
-
-            Asistencia salida = asistenciasEmpleado.stream()
-                .filter(a -> "SALIDA".equals(a.getTipo()))
-                .max((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
-                .orElse(null);
-
-            if (entrada != null) {
-                ResumenAsistenciaDTO dto = new ResumenAsistenciaDTO();
-                dto.setNombre(entrada.getEmpleado().getNombreCompleto());
-                dto.setEntrada(entrada.getFechaHora().toLocalTime().toString());
-                
-                LocalTime horaSalidaEsperada = calcularSalidaEsperada(
-                    entrada.getFechaHora().toLocalTime()
-                );
-                dto.setSalidaEsperada(horaSalidaEsperada.toString());
-
-                if (salida != null) {
-                    dto.setSalida(salida.getFechaHora().toLocalTime().toString());
-                    
-                    MinutosExtras extras = calcularMinutosExtra(
-                        entrada.getFechaHora().toLocalTime(),
-                        salida.getFechaHora().toLocalTime(),
-                        horaSalidaEsperada,
-                        dia
-                    );
-                    
-                    dto.setMinutosExtra25((int) extras.extra25());
-                    dto.setMinutosExtra50((int) extras.extra50());
-                }
-
-                resumen.add(dto);
-            }
-        });
-
-        return resumen;
+        return procesarMarcasAsistencia(asistencias, null);
     }
 
     /**
@@ -190,7 +144,7 @@ public class AsistenciaService implements IAsistenciaService {
         LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
 
         List<Asistencia> marcas = repo.findAllByFechaHoraBetween(desde, hasta);
-        return procesarMarcasAsistencia(marcas, fechaInicio);
+        return procesarMarcasAsistencia(marcas, null);
     }
 
     /**
@@ -202,7 +156,7 @@ public class AsistenciaService implements IAsistenciaService {
         LocalDateTime hasta = dia.plusDays(1).atStartOfDay();
 
         List<Asistencia> marcas = repo.findAllByEmpleadoRutAndFechaBetween(rut, desde, hasta);
-        return procesarMarcasAsistencia(marcas, dia);
+        return procesarMarcasAsistencia(marcas, null);
     }
 
     /**
@@ -214,7 +168,7 @@ public class AsistenciaService implements IAsistenciaService {
         LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
 
         List<Asistencia> marcas = repo.findAllByEmpleadoRutAndFechaBetween(rut, desde, hasta);
-        return procesarMarcasAsistencia(marcas, fechaInicio);
+        return procesarMarcasAsistencia(marcas, null);
     }
 
     /**
@@ -237,47 +191,185 @@ public class AsistenciaService implements IAsistenciaService {
                               ", RUT: " + marcas.get(0).getEmpleado().getRut());
         }
         
-        return procesarMarcasAsistencia(marcas, fechaInicio);
+        return procesarMarcasAsistencia(marcas, null);
     }
 
     /**
      * Método privado para procesar las marcas y convertirlas en DTOs
      */
-    private List<ResumenAsistenciaDTO> procesarMarcasAsistencia(List<Asistencia> marcas, LocalDate dia) {
-        Map<Long, List<Asistencia>> agrupado = marcas.stream()
-                .collect(Collectors.groupingBy(a -> a.getEmpleado().getIdEmpleado()));
+    private List<ResumenAsistenciaDTO> procesarMarcasAsistencia(List<Asistencia> marcas, LocalDate unused) {
+        if (marcas == null || marcas.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        Map<Long, Map<LocalDate, List<Asistencia>>> agrupadoPorFecha = marcas.stream()
+                .collect(Collectors.groupingBy(
+                    a -> a.getEmpleado().getIdEmpleado(),
+                    Collectors.groupingBy(a -> a.getFechaHora().toLocalDate())
+                ));
 
-        return agrupado.values().stream().map(lista -> {
-            Asistencia ent = lista.stream()
-                    .filter(a -> "ENTRADA".equals(a.getTipo()))
-                    .min((a,b) -> a.getFechaHora().compareTo(b.getFechaHora()))
-                    .orElseThrow();
-            Asistencia sal = lista.stream()
-                    .filter(a -> "SALIDA".equals(a.getTipo()) &&
-                            a.getFechaHora().isAfter(ent.getFechaHora()))
-                    .max((a,b) -> a.getFechaHora().compareTo(b.getFechaHora()))
-                    .orElse(null);
+        List<ResumenAsistenciaDTO> resumen = new ArrayList<>();
+        
+        agrupadoPorFecha.forEach((empleadoId, marcasPorFecha) -> {
+            marcasPorFecha.forEach((fecha, marcasDelDia) -> {
+                try {
+                    // Obtener todas las entradas y salidas para esta fecha
+                    List<Asistencia> entradasDelDia = marcasDelDia.stream()
+                            .filter(a -> "ENTRADA".equals(a.getTipo()))
+                            .sorted((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
+                            .collect(Collectors.toList());
+                            
+                    List<Asistencia> salidasDelDia = marcasDelDia.stream()
+                            .filter(a -> "SALIDA".equals(a.getTipo()))
+                            .sorted((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
+                            .collect(Collectors.toList());
+                    
+                    // Si no hay entradas ni salidas, no procesamos este día
+                    if (entradasDelDia.isEmpty() && salidasDelDia.isEmpty()) {
+                        return;
+                    }
+                    
+                    // Verificar si es un día especial (feriado o fin de semana)
+                    boolean esDiaEspecial = feriadoSvc.esFinDeSemanaOFeriado(fecha);
+                    
+                    // Convertir la fecha a formato más legible
+                    String fechaFormateada = fecha.getDayOfMonth() + "/" + 
+                                           fecha.getMonthValue() + "/" + 
+                                           fecha.getYear();
+                    
+                    // Si hay más entradas que salidas o viceversa, necesitamos procesar cada marca individualmente
+                    int maxMarcas = Math.max(entradasDelDia.size(), salidasDelDia.size());
+                    
+                    // Para cada par potencial de entrada/salida
+                    if (maxMarcas == 0) {
+                        // Caso especial: si solo hay un tipo de marca (todas entradas o todas salidas)
+                        if (!entradasDelDia.isEmpty()) {
+                            // Solo hay entradas
+                            for (Asistencia entrada : entradasDelDia) {
+                                createResumenForMarcas(fecha, fechaFormateada, esDiaEspecial, entrada, null, resumen);
+                            }
+                        } else {
+                            // Solo hay salidas
+                            for (Asistencia salida : salidasDelDia) {
+                                createResumenForMarcas(fecha, fechaFormateada, esDiaEspecial, null, salida, resumen);
+                            }
+                        }
+                    } else {
+                        // Procesamos cada par de entrada/salida o marcas individuales
+                        for (int i = 0; i < maxMarcas; i++) {
+                            Asistencia entrada = i < entradasDelDia.size() ? entradasDelDia.get(i) : null;
+                            Asistencia salida = null;
+                            
+                            // Buscar la salida correspondiente (posterior a esta entrada)
+                            if (entrada != null) {
+                                for (Asistencia potencialSalida : salidasDelDia) {
+                                    if (potencialSalida.getFechaHora().isAfter(entrada.getFechaHora())) {
+                                        salida = potencialSalida;
+                                        // Remover esta salida para no usarla nuevamente
+                                        salidasDelDia.remove(potencialSalida);
+                                        break;
+                                    }
+                                }
+                            } else if (i < salidasDelDia.size()) {
+                                // No hay entrada correspondiente, pero hay una salida
+                                salida = salidasDelDia.get(i);
+                            }
+                            
+                            // Crear el DTO para este par o marca individual
+                            if (entrada != null || salida != null) {
+                                createResumenForMarcas(fecha, fechaFormateada, esDiaEspecial, entrada, salida, resumen);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Registrar el error pero continuar con otros días/empleados
+                    System.err.println("Error procesando marcas: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+        });
 
-            LocalTime horaEnt = ent.getFechaHora().toLocalTime();
-            LocalTime horaSalReal = sal != null
-                    ? sal.getFechaHora().toLocalTime()
-                    : null;
-
-            LocalTime horaSalEsp = calcularSalidaEsperada(horaEnt);
+        return resumen;
+    }
+    
+    /**
+     * Método auxiliar para crear un DTO de resumen para un par de marcas o marcas individuales
+     */
+    private void createResumenForMarcas(LocalDate fecha, String fechaFormateada, boolean esDiaEspecial, 
+                                       Asistencia entrada, Asistencia salida, List<ResumenAsistenciaDTO> resumen) {
+        
+        LocalTime horaEnt = entrada != null ? entrada.getFechaHora().toLocalTime() : null;
+        LocalTime horaSalReal = salida != null ? salida.getFechaHora().toLocalTime() : null;
+        
+        // Calcular salida esperada solo si hay entrada
+        LocalTime horaSalEsp = horaEnt != null ? calcularSalidaEsperada(horaEnt) : null;
+        
+        // Calcular extras solo si hay entrada y salida
+        MinutosExtras extras = new MinutosExtras(0, 0);
+        if (horaEnt != null && horaSalReal != null) {
+            extras = calcularMinutosExtra(horaEnt, horaSalReal, horaSalEsp, fecha);
+        }
+        
+        ResumenAsistenciaDTO dto = new ResumenAsistenciaDTO();
+        
+        // Asignar el ID de la asistencia de entrada o salida, priorizando la de salida para edición de estado
+        if (salida != null) {
+            dto.setIdAsistencia(salida.getId());
+            dto.setEstado(salida.getEstado());
+        } else if (entrada != null) {
+            dto.setIdAsistencia(entrada.getId());
+            dto.setEstado(entrada.getEstado());
+        }
+        
+        dto.setFecha(fechaFormateada); // Fecha formateada DD/MM/YYYY
+        
+        // Usar empleado de la entrada o salida, el que esté disponible
+        if (entrada != null) {
+            dto.setNombre(entrada.getEmpleado().getNombreCompleto());
+            dto.setRut(entrada.getEmpleado().getRut());
+        } else if (salida != null) {
+            dto.setNombre(salida.getEmpleado().getNombreCompleto());
+            dto.setRut(salida.getEmpleado().getRut());
+        }
+        
+        // Establecer horas de entrada y salida
+        dto.setEntrada(horaEnt != null ? horaEnt.toString() : null);
+        dto.setSalida(horaSalReal != null ? horaSalReal.toString() : null);
+        dto.setSalidaEsperada(horaSalEsp != null ? horaSalEsp.toString() : null);
+        
+        dto.setMinutosExtra25((int) extras.extra25());
+        dto.setMinutosExtra50((int) extras.extra50());
+        
+        // Establecer si es día especial
+        dto.setEsDiaEspecial(esDiaEspecial);
+        
+        // Agregar observaciones según las condiciones
+        StringBuilder observaciones = new StringBuilder();
+        
+        if (esDiaEspecial) {
+            observaciones.append("Día no laborable. ");
             
-            MinutosExtras extras = calcularMinutosExtra(horaEnt, horaSalReal, horaSalEsp, dia);
-
-            ResumenAsistenciaDTO dto = new ResumenAsistenciaDTO();
-            dto.setNombre(ent.getEmpleado().getNombreCompleto());
-            dto.setRut(ent.getEmpleado().getRut());
-            dto.setEntrada(horaEnt.toString());
-            dto.setSalida(horaSalReal != null ? horaSalReal.toString() : null);
-            dto.setSalidaEsperada(horaSalEsp.toString());
-            dto.setMinutosExtra25((int) extras.extra25());
-            dto.setMinutosExtra50((int) extras.extra50());
-
-            return dto;
-        }).collect(Collectors.toList());
+            if (extras.extra50() > 0) {
+                observaciones.append("Horas extras calculadas al 50%. ");
+            }
+        }
+        
+        if (entrada == null) {
+            observaciones.append("Falta marca de entrada. ");
+        }
+        
+        if (salida == null) {
+            observaciones.append("Falta marca de salida. ");
+        }
+        
+        // Verificar inconsistencias entre entrada y salida
+        if (horaEnt != null && horaSalReal != null && horaSalReal.isBefore(horaEnt)) {
+            observaciones.append("Inconsistencia: Salida anterior a entrada. ");
+        }
+        
+        dto.setObservaciones(observaciones.toString().trim());
+        
+        resumen.add(dto);
     }
     
     /**
@@ -289,8 +381,23 @@ public class AsistenciaService implements IAsistenciaService {
         LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
 
         // Logs para depuración
+        System.out.println("==================== INICIO DEPURACIÓN ====================");
         System.out.println("Buscando asistencias con RUT parcial: " + rutParcial);
         System.out.println("Fechas: " + desde + " a " + hasta);
+        System.out.println("Formato de fecha: " + fechaInicio + " a " + fechaFin);
+        
+        // Verificar si el RUT existe
+        List<Asistencia> todasMarcas = repo.findAll();
+        Set<String> rutDisponibles = todasMarcas.stream()
+            .map(a -> a.getEmpleado().getRut())
+            .collect(Collectors.toSet());
+        System.out.println("RUTs disponibles en la base de datos: " + rutDisponibles);
+        
+        // Verificar fechas disponibles
+        Set<LocalDate> fechasDisponibles = todasMarcas.stream()
+            .map(a -> a.getFechaHora().toLocalDate())
+            .collect(Collectors.toSet());
+        System.out.println("Fechas disponibles en la base de datos: " + fechasDisponibles);
         
         List<Asistencia> marcas = repo.findAllByRutParcialAndFechaBetween(rutParcial, desde, hasta);
         
@@ -298,9 +405,12 @@ public class AsistenciaService implements IAsistenciaService {
         if (!marcas.isEmpty()) {
             System.out.println("Primera marca - Empleado: " + marcas.get(0).getEmpleado().getNombreCompleto() + 
                               ", RUT: " + marcas.get(0).getEmpleado().getRut());
+        } else {
+            System.out.println("No se encontraron marcas para RUT: " + rutParcial + " en fechas " + desde + " a " + hasta);
         }
+        System.out.println("==================== FIN DEPURACIÓN ====================");
         
-        return procesarMarcasAsistencia(marcas, fechaInicio);
+        return procesarMarcasAsistencia(marcas, null);
     }
 
     /**
@@ -364,5 +474,27 @@ public class AsistenciaService implements IAsistenciaService {
             // Sin RUT, devolver todo el mes
             return resumenPorRangoFechas(primerDiaMes, ultimoDiaMes);
         }
+    }
+
+    /**
+     * Actualiza el estado de una asistencia.
+     * 
+     * @param id ID de la asistencia
+     * @param estado Nuevo estado (AUTORIZADO, RECHAZADO, PENDIENTE)
+     * @return true si se actualizó correctamente, false si no se encontró la asistencia
+     */
+    @Transactional
+    public boolean actualizarEstado(Long id, String estado) {
+        Asistencia asistencia = repo.findById(id).orElse(null);
+        
+        if (asistencia == null) {
+            return false;
+        }
+        
+        // Actualizar el estado
+        asistencia.setEstado(estado);
+        repo.save(asistencia);
+        
+        return true;
     }
 }

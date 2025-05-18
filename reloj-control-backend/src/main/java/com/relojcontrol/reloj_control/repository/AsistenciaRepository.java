@@ -31,9 +31,9 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
     );
     
     // Busca todas las marcas por RUT parcial entre dos fechas
-    @Query("SELECT a FROM Asistencia a WHERE " +
-           "(a.empleado.rut LIKE CONCAT(:rutParcial, '%') OR " +
-           "REPLACE(REPLACE(a.empleado.rut, '.', ''), '-', '') LIKE CONCAT(:rutParcial, '%')) " +
+    @Query("SELECT a FROM Asistencia a JOIN a.empleado e WHERE " +
+           "(e.rut LIKE CONCAT('%', :rutParcial, '%') OR " +
+           "REPLACE(REPLACE(e.rut, '.', ''), '-', '') LIKE CONCAT('%', :rutParcial, '%')) " +
            "AND a.fechaHora BETWEEN :desde AND :hasta")
     List<Asistencia> findAllByRutParcialAndFechaBetween(
         @Param("rutParcial") String rutParcial,

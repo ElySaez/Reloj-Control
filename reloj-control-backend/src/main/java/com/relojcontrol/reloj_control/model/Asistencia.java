@@ -21,6 +21,9 @@ public class Asistencia {
     @Column(nullable = false)
     private String tipo; // "ENTRADA", "SALIDA" o genérico "MARCA"
 
+    @Column
+    private String estado = "AUTORIZADO"; // "AUTORIZADO", "RECHAZADO", "PENDIENTE"
+
     // Constructor por defecto (requerido por JPA)
     public Asistencia() {}
 
@@ -34,6 +37,7 @@ public class Asistencia {
         this.empleado = empleado;
         this.fechaHora   = fechaHora;
         this.tipo        = tipo;
+        this.estado      = "AUTORIZADO"; // Por defecto AUTORIZADO
     }
 
     // Getters y setters
@@ -57,6 +61,12 @@ public class Asistencia {
     }
     public void setTipo(String tipo) {
         this.tipo = tipo;
+    }
+    public String getEstado() {
+        return estado;
+    }
+    public void setEstado(String estado) {
+        this.estado = estado;
     }
 }
 
