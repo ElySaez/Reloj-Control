@@ -218,6 +218,29 @@ public class AsistenciaService implements IAsistenciaService {
     }
 
     /**
+     * Devuelve el resumen de asistencia filtrando por RUT parcial para un rango de fechas (búsqueda flexible)
+     */
+    @Transactional(readOnly = true)
+    public List<ResumenAsistenciaDTO> resumenPorRutParcialFlexibleYRangoFechas(String rutParcial, LocalDate fechaInicio, LocalDate fechaFin) {
+        LocalDateTime desde = fechaInicio.atStartOfDay();
+        LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
+
+        // Logs para depuración
+        System.out.println("Buscando asistencias con RUT parcial (flexible): " + rutParcial);
+        System.out.println("Fechas: " + desde + " a " + hasta);
+        
+        List<Asistencia> marcas = repo.findAllByRutParcialFlexibleAndFechaBetween(rutParcial, desde, hasta);
+        
+        System.out.println("Marcas encontradas (búsqueda flexible): " + marcas.size());
+        if (!marcas.isEmpty()) {
+            System.out.println("Primera marca (flexible) - Empleado: " + marcas.get(0).getEmpleado().getNombreCompleto() + 
+                              ", RUT: " + marcas.get(0).getEmpleado().getRut());
+        }
+        
+        return procesarMarcasAsistencia(marcas, fechaInicio);
+    }
+
+    /**
      * Método privado para procesar las marcas y convertirlas en DTOs
      */
     private List<ResumenAsistenciaDTO> procesarMarcasAsistencia(List<Asistencia> marcas, LocalDate dia) {
@@ -246,13 +269,100 @@ public class AsistenciaService implements IAsistenciaService {
 
             ResumenAsistenciaDTO dto = new ResumenAsistenciaDTO();
             dto.setNombre(ent.getEmpleado().getNombreCompleto());
+            dto.setRut(ent.getEmpleado().getRut());
             dto.setEntrada(horaEnt.toString());
             dto.setSalida(horaSalReal != null ? horaSalReal.toString() : null);
             dto.setSalidaEsperada(horaSalEsp.toString());
-            dto.setMinutosExtra25(extras.extra25());
-            dto.setMinutosExtra50(extras.extra50());
+            dto.setMinutosExtra25((int) extras.extra25());
+            dto.setMinutosExtra50((int) extras.extra50());
 
             return dto;
         }).collect(Collectors.toList());
+    }
+    
+    /**
+     * Devuelve el resumen de asistencia filtrando por RUT parcial para un rango de fechas
+     */
+    @Transactional(readOnly = true)
+    public List<ResumenAsistenciaDTO> resumenPorRutParcialYRangoFechas(String rutParcial, LocalDate fechaInicio, LocalDate fechaFin) {
+        LocalDateTime desde = fechaInicio.atStartOfDay();
+        LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
+
+        // Logs para depuración
+        System.out.println("Buscando asistencias con RUT parcial: " + rutParcial);
+        System.out.println("Fechas: " + desde + " a " + hasta);
+        
+        List<Asistencia> marcas = repo.findAllByRutParcialAndFechaBetween(rutParcial, desde, hasta);
+        
+        System.out.println("Marcas encontradas: " + marcas.size());
+        if (!marcas.isEmpty()) {
+            System.out.println("Primera marca - Empleado: " + marcas.get(0).getEmpleado().getNombreCompleto() + 
+                              ", RUT: " + marcas.get(0).getEmpleado().getRut());
+        }
+        
+        return procesarMarcasAsistencia(marcas, fechaInicio);
+    }
+
+    /**
+     * Devuelve el resumen de asistencia de todos los empleados para un mes y año específicos
+     * 
+     * @param mes Mes (1-12)
+     * @param año Año (ej: 2025)
+     * @return Lista de resúmenes de asistencia del mes
+     */
+    @Transactional(readOnly = true)
+    public List<ResumenAsistenciaDTO> resumenPorMesYAño(int mes, int año) {
+        // Validar mes
+        if (mes < 1 || mes > 12) {
+            throw new IllegalArgumentException("El mes debe estar entre 1 y 12");
+        }
+        
+        // Calcular primer y último día del mes
+        LocalDate primerDiaMes = LocalDate.of(año, mes, 1);
+        LocalDate ultimoDiaMes = primerDiaMes.plusMonths(1).minusDays(1);
+        
+        // Usar el método existente de rango de fechas
+        return resumenPorRangoFechas(primerDiaMes, ultimoDiaMes);
+    }
+    
+    /**
+     * Devuelve el resumen de asistencia de un empleado por RUT para un mes y año específicos
+     * 
+     * @param rut RUT del empleado (completo o parcial)
+     * @param mes Mes (1-12)
+     * @param año Año (ej: 2025)
+     * @return Lista de resúmenes de asistencia del mes para el empleado
+     */
+    @Transactional(readOnly = true)
+    public List<ResumenAsistenciaDTO> resumenPorRutMesYAño(String rut, int mes, int año) {
+        // Validar mes
+        if (mes < 1 || mes > 12) {
+            throw new IllegalArgumentException("El mes debe estar entre 1 y 12");
+        }
+        
+        // Calcular primer y último día del mes
+        LocalDate primerDiaMes = LocalDate.of(año, mes, 1);
+        LocalDate ultimoDiaMes = primerDiaMes.plusMonths(1).minusDays(1);
+        
+        // Usar métodos existentes según formato de RUT
+        if (rut != null && !rut.isEmpty()) {
+            if (rut.contains("-")) {
+                // RUT completo
+                return resumenPorRutYRangoFechas(rut, primerDiaMes, ultimoDiaMes);
+            } else {
+                // RUT parcial, intentar búsqueda exacta primero
+                List<ResumenAsistenciaDTO> resumen = resumenPorRutParcialYRangoFechas(rut, primerDiaMes, ultimoDiaMes);
+                
+                // Si no hay resultados, intentar búsqueda flexible
+                if (resumen.isEmpty()) {
+                    return resumenPorRutParcialFlexibleYRangoFechas(rut, primerDiaMes, ultimoDiaMes);
+                }
+                
+                return resumen;
+            }
+        } else {
+            // Sin RUT, devolver todo el mes
+            return resumenPorRangoFechas(primerDiaMes, ultimoDiaMes);
+        }
     }
 }

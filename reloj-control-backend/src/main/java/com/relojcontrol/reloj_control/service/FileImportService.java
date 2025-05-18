@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class FileImportService implements IFileImportService {
@@ -23,6 +24,62 @@ public class FileImportService implements IFileImportService {
                              AsistenciaRepository aRepo) {
         this.fRepo = fRepo;
         this.aRepo = aRepo;
+    }
+
+    /**
+     * Limpia un RUT eliminando puntos, guiones y dígito verificador si existe.
+     * @param rut RUT a limpiar
+     * @return RUT sin formato, solo la parte numérica
+     */
+    private String limpiarRut(String rut) {
+        // Quitar puntos y guiones
+        String rutLimpio = rut.replace(".", "").replace("-", "");
+        
+        // Si el último caracter es un dígito verificador (número o K), quitarlo
+        if (rutLimpio.length() > 1) {
+            char ultimoChar = rutLimpio.charAt(rutLimpio.length() - 1);
+            if (Character.isDigit(ultimoChar) || ultimoChar == 'K' || ultimoChar == 'k') {
+                rutLimpio = rutLimpio.substring(0, rutLimpio.length() - 1);
+            }
+        }
+        
+        return rutLimpio;
+    }
+
+    /**
+     * Calcula el dígito verificador para un RUT chileno.
+     * @param rutSinDV RUT sin dígito verificador
+     * @return Dígito verificador (0-9 o K)
+     */
+    private String calcularDV(String rutSinDV) {
+        try {
+            int rut = Integer.parseInt(rutSinDV);
+            int m = 0, s = 1;
+            for (; rut != 0; rut /= 10) {
+                s = (s + rut % 10 * (9 - m++ % 6)) % 11;
+            }
+            return (s > 0) ? String.valueOf(s - 1) : "K";
+        } catch (NumberFormatException e) {
+            return "0"; // En caso de error, devuelve 0 como valor por defecto
+        }
+    }
+
+    /**
+     * Formatea un RUT en el formato estándar chileno (XX.XXX.XXX-Y)
+     * @param rutSinDV RUT sin dígito verificador
+     * @return RUT formateado con dígito verificador
+     */
+    private String formatearRut(String rutSinDV) {
+        String dv = calcularDV(rutSinDV);
+        
+        // Formatear con puntos
+        StringBuilder rutFormateado = new StringBuilder(rutSinDV);
+        for (int i = rutFormateado.length() - 3; i > 0; i -= 3) {
+            rutFormateado.insert(i, '.');
+        }
+        
+        // Añadir guion y dígito verificador
+        return rutFormateado + "-" + dv;
     }
 
     private String determinarTipoMarca(Empleado empleado, LocalDateTime fechaHora) {
@@ -49,12 +106,28 @@ public class FileImportService implements IFileImportService {
                 String rutSinDV = cols[0].trim();
                 LocalDateTime fechaHora = LocalDateTime.parse(cols[1], fmt);
 
-                fRepo.findByRut(rutSinDV)
-                        .ifPresent(empleado -> {
-                            String tipo = determinarTipoMarca(empleado, fechaHora);
-                            Asistencia a = new Asistencia(empleado, fechaHora, tipo);
-                            aRepo.save(a);
-                        });
+                // Método 1: Calcular el dígito verificador y buscar por RUT completo
+                String rutCompleto = formatearRut(rutSinDV);
+                Optional<Empleado> empleadoOpt = fRepo.findByRut(rutCompleto);
+
+                // Método 2 (respaldo): Si no lo encuentra, buscar por la parte numérica
+                if (empleadoOpt.isEmpty()) {
+                    String rutLimpio = limpiarRut(rutSinDV);
+                    List<Empleado> empleados = fRepo.findAllByRutStartingWith(rutLimpio);
+                    
+                    if (!empleados.isEmpty()) {
+                        Empleado empleado = empleados.get(0);
+                        String tipo = determinarTipoMarca(empleado, fechaHora);
+                        Asistencia a = new Asistencia(empleado, fechaHora, tipo);
+                        aRepo.save(a);
+                    }
+                } else {
+                    // Si lo encontró por RUT completo
+                    Empleado empleado = empleadoOpt.get();
+                    String tipo = determinarTipoMarca(empleado, fechaHora);
+                    Asistencia a = new Asistencia(empleado, fechaHora, tipo);
+                    aRepo.save(a);
+                }
             }
         }
     }

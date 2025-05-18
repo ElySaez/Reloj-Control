@@ -30,10 +30,32 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
         @Param("hasta") LocalDateTime hasta
     );
     
+    // Busca todas las marcas por RUT parcial entre dos fechas
+    @Query("SELECT a FROM Asistencia a WHERE " +
+           "(a.empleado.rut LIKE CONCAT(:rutParcial, '%') OR " +
+           "REPLACE(REPLACE(a.empleado.rut, '.', ''), '-', '') LIKE CONCAT(:rutParcial, '%')) " +
+           "AND a.fechaHora BETWEEN :desde AND :hasta")
+    List<Asistencia> findAllByRutParcialAndFechaBetween(
+        @Param("rutParcial") String rutParcial,
+        @Param("desde") LocalDateTime desde,
+        @Param("hasta") LocalDateTime hasta
+    );
+    
     // Busca todas las marcas de un empleado por ID entre dos fechas
     List<Asistencia> findAllByEmpleadoIdEmpleadoAndFechaHoraBetween(
         Long empleadoId,
         LocalDateTime inicio,
         LocalDateTime fin
+    );
+    
+    // Busca todas las marcas por RUT parcial entre dos fechas (búsqueda flexible)
+    @Query("SELECT a FROM Asistencia a WHERE " +
+           "(a.empleado.rut LIKE CONCAT('%', :rutParcial, '%') OR " +
+           "REPLACE(REPLACE(a.empleado.rut, '.', ''), '-', '') LIKE CONCAT('%', :rutParcial, '%')) " +
+           "AND a.fechaHora BETWEEN :desde AND :hasta")
+    List<Asistencia> findAllByRutParcialFlexibleAndFechaBetween(
+        @Param("rutParcial") String rutParcial,
+        @Param("desde") LocalDateTime desde,
+        @Param("hasta") LocalDateTime hasta
     );
 }

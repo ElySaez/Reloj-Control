@@ -94,7 +94,7 @@ public class AsistenciaController {
     /**
      * Obtiene el resumen de asistencias para una fecha específica.
      *
-     * @param fecha Fecha para la cual se quiere obtener el resumen
+     * @param rut Fecha para la cual se quiere obtener el resumen
      * @return Lista de resúmenes de asistencia
      */
     @Operation(summary = "Obtener resumen de asistencias",
@@ -105,22 +105,109 @@ public class AsistenciaController {
     })
     @GetMapping("/resumen")
     public ResponseEntity<?> resumen(
-            @Parameter(description = "Fecha para el resumen (formato: yyyy-MM-dd)")
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fecha) {
-        try {
-            logger.info("Obteniendo resumen para fecha: {}", fecha);
+            @Parameter(description = "Fecha inicio (formato: yyyy-MM-dd)")
+            @RequestParam(name = "inicio") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate inicio,
             
-            if (fecha == null) {
-                return ResponseEntity.badRequest().body("La fecha es requerida");
+            @Parameter(description = "Fecha fin (formato: yyyy-MM-dd)")
+            @RequestParam(name = "fin", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fin,
+            
+            @Parameter(description = "RUT empleado (parcial o completo)")
+            @RequestParam(name = "rut", required = false) String rut) {
+        try {
+            logger.info("Obteniendo resumen para fechas: {} a {}, RUT: {}", inicio, fin, rut);
+            
+            if (inicio == null) {
+                return ResponseEntity.badRequest().body("La fecha de inicio es requerida");
             }
 
-            List<ResumenAsistenciaDTO> resumen = asistenciaService.resumenPorDia(fecha);
+            // Si no se especifica fecha fin, usar la misma fecha inicio
+            if (fin == null) {
+                fin = inicio;
+            }
+
+            List<ResumenAsistenciaDTO> resumen;
+            
+            // Sin RUT, solo filtrar por fechas
+            if (rut == null || rut.isEmpty()) {
+                resumen = asistenciaService.resumenPorRangoFechas(inicio, fin);
+            }
+            // Con RUT, intentar diferentes estrategias de búsqueda
+            else {
+                if (rut.contains("-")) {
+                    // RUT exacto con formato (ej: 12.345.678-9)
+                    resumen = asistenciaService.resumenPorRutYRangoFechas(rut, inicio, fin);
+                } else {
+                    // Intentar primero búsqueda exacta al principio del RUT
+                    resumen = asistenciaService.resumenPorRutParcialYRangoFechas(rut, inicio, fin);
+                    
+                    // Si no hay resultados, intentar búsqueda flexible
+                    if (resumen.isEmpty()) {
+                        logger.info("No se encontraron resultados con búsqueda estándar, intentando búsqueda flexible");
+                        resumen = asistenciaService.resumenPorRutParcialFlexibleYRangoFechas(rut, inicio, fin);
+                    }
+                }
+            }
             
             logger.info("Resumen generado exitosamente con {} registros", resumen.size());
             return ResponseEntity.ok(resumen);
         } catch (Exception e) {
             logger.error("Error al generar resumen", e);
             return ResponseEntity.badRequest().body("Error al generar resumen: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Obtiene el resumen de asistencias filtrado por mes y año.
+     *
+     * @param mes Mes (1-12)
+     * @param año Año (ej: 2025)
+     * @param rut RUT del empleado (opcional)
+     * @return Lista de resúmenes de asistencia
+     */
+    @Operation(summary = "Obtener resumen de asistencias por mes y año",
+              description = "Obtiene el resumen de asistencias filtrado por mes, año y opcionalmente por RUT de empleado")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Resumen obtenido exitosamente"),
+        @ApiResponse(responseCode = "400", description = "Parámetros inválidos")
+    })
+    @GetMapping("/resumen/mensual")
+    public ResponseEntity<?> resumenMensual(
+            @Parameter(description = "Mes (1-12)")
+            @RequestParam(name = "mes") int mes,
+            
+            @Parameter(description = "Año (ej: 2025)")
+            @RequestParam(name = "año") int año,
+            
+            @Parameter(description = "RUT empleado (parcial o completo, opcional)")
+            @RequestParam(name = "rut", required = false) String rut) {
+        try {
+            logger.info("Obteniendo resumen mensual: mes={}, año={}, RUT={}", mes, año, rut);
+            
+            // Validar parámetros
+            if (mes < 1 || mes > 12) {
+                return ResponseEntity.badRequest().body("El mes debe estar entre 1 y 12");
+            }
+            
+            if (año < 2000 || año > 2100) {
+                return ResponseEntity.badRequest().body("Año fuera de rango válido");
+            }
+
+            List<ResumenAsistenciaDTO> resumen;
+            
+            // Llamar al servicio según parámetros
+            if (rut == null || rut.isEmpty()) {
+                // Solo filtrar por mes y año
+                resumen = asistenciaService.resumenPorMesYAño(mes, año);
+            } else {
+                // Filtrar por mes, año y RUT
+                resumen = asistenciaService.resumenPorRutMesYAño(rut, mes, año);
+            }
+            
+            logger.info("Resumen mensual generado exitosamente con {} registros", resumen.size());
+            return ResponseEntity.ok(resumen);
+        } catch (Exception e) {
+            logger.error("Error al generar resumen mensual", e);
+            return ResponseEntity.badRequest().body("Error al generar resumen mensual: " + e.getMessage());
         }
     }
 }
