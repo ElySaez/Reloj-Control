@@ -2,7 +2,6 @@ package com.relojcontrol.reloj_control.controller;
 
 import com.relojcontrol.reloj_control.model.Empleado;
 import com.relojcontrol.reloj_control.model.Asistencia;
-import com.relojcontrol.reloj_control.model.Usuario;
 import com.relojcontrol.reloj_control.repository.AsistenciaRepository;
 import com.relojcontrol.reloj_control.repository.EmpleadoRepository;
 import com.relojcontrol.reloj_control.repository.UsuarioRepository;
@@ -69,11 +68,12 @@ public class AsistenciaController {
     @PostMapping
     public ResponseEntity<?> marcar(
             @Parameter(description = "ID del empleado") @RequestParam Long empleadoId,
-            @Parameter(description = "Tipo de marca (ENTRADA o SALIDA)") @RequestParam String tipo) {
+            @Parameter(description = "Tipo de marca (ENTRADA o SALIDA)") @RequestParam String tipo,
+            @Parameter(description = "Hora de marca") @RequestParam String fecha) {
         try {
             Empleado emp = eRepo.findById(Math.toIntExact(empleadoId))
                     .orElseThrow(() -> new IllegalArgumentException("Empleado no encontrado"));
-            Asistencia a = new Asistencia(emp, LocalDateTime.now(), tipo);
+            Asistencia a = new Asistencia(emp, LocalDateTime.parse(fecha), tipo);
             return ResponseEntity.ok(asRepo.save(a));
         } catch (Exception e) {
             logger.error("Error al marcar asistencia", e);
@@ -313,6 +313,86 @@ public class AsistenciaController {
         } catch (Exception e) {
             logger.error("Error al asegurar datos para fechas", e);
             return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Obtiene las marcas originales (sin procesar) para un empleado y rango de fechas.
+     * Útil para la pantalla de edición.
+     *
+     * @param rut RUT del empleado
+     * @param fechaInicio Fecha inicio (formato: yyyy-MM-dd)
+     * @param fechaFin Fecha fin (formato: yyyy-MM-dd)
+     * @return Lista de marcas de asistencia
+     */
+    @Operation(summary = "Obtener marcas por empleado y rango de fechas",
+               description = "Obtiene las marcas originales para un empleado en un rango de fechas")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Marcas obtenidas exitosamente"),
+        @ApiResponse(responseCode = "400", description = "Parámetros inválidos")
+    })
+    @GetMapping("/marcas/empleado")
+    public ResponseEntity<?> getMarcasPorEmpleadoYFechas(
+            @RequestParam String rut,
+            @RequestParam LocalDate fechaInicio,
+            @RequestParam(required = false) LocalDate fechaFin)
+    {
+        try {
+            logger.info("Obteniendo marcas para empleado RUT: {}, desde: {}, hasta: {}", rut, fechaInicio, fechaFin);
+            
+            if (rut == null || rut.isEmpty()) {
+                return ResponseEntity.badRequest().body("El RUT del empleado es requerido");
+            }
+            
+            if (fechaInicio == null) {
+                return ResponseEntity.badRequest().body("La fecha de inicio es requerida");
+            }
+            
+            // Si no se proporciona fecha fin, usar fecha inicio + 2 días
+            LocalDate fechaFinReal = (fechaFin != null) ? fechaFin : fechaInicio.plusDays(2);
+            
+            // Convertir a LocalDateTime para el rango completo
+            LocalDateTime desde = fechaInicio.atStartOfDay();
+            LocalDateTime hasta = fechaFinReal.plusDays(1).atStartOfDay();
+            
+            List<Asistencia> marcas;
+            
+            // Buscar por RUT exacto o parcial
+            if (rut.contains("-")) {
+                // RUT completo
+                marcas = asRepo.findAllByEmpleadoRutAndFechaBetween(rut, desde, hasta);
+            } else {
+                // RUT parcial
+                marcas = asRepo.findAllByRutParcialAndFechaBetween(rut, desde, hasta);
+            }
+            
+            // Ordenar marcas por fecha y hora
+            marcas.sort((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()));
+            
+            // Agrupar marcas por día
+            Map<String, List<Asistencia>> marcasPorDia = new HashMap<>();
+            
+            for (Asistencia marca : marcas) {
+                String fecha = marca.getFechaHora().toLocalDate().toString();
+                if (!marcasPorDia.containsKey(fecha)) {
+                    marcasPorDia.put(fecha, new ArrayList<>());
+                }
+                marcasPorDia.get(fecha).add(marca);
+            }
+            
+            // Crear respuesta
+            Map<String, Object> respuesta = new HashMap<>();
+            respuesta.put("empleadoRut", rut);
+            respuesta.put("fechaInicio", fechaInicio.toString());
+            respuesta.put("fechaFin", fechaFinReal.toString());
+            respuesta.put("marcasPorDia", marcasPorDia);
+            respuesta.put("marcas", marcas);
+            
+            return ResponseEntity.ok(respuesta);
+            
+        } catch (Exception e) {
+            logger.error("Error al obtener marcas por empleado y fechas", e);
+            return ResponseEntity.badRequest().body("Error al obtener marcas: " + e.getMessage());
         }
     }
 }
