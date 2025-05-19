@@ -13,12 +13,12 @@ export default function Resumen() {
     const [savingState, setSavingState] = useState(false) // Para indicar cambios de estado en proceso
     const [savingStateId, setSavingStateId] = useState(null)
     
-    // Nuevos estados para filtro por mes y año
-    const mesActual = new Date().getMonth() + 1;
-    const añoActual = new Date().getFullYear();
-    const [mes, setMes] = useState(mesActual.toString())
-    const [año, setAño] = useState(añoActual.toString())
-    const [usarFiltroMensual, setUsarFiltroMensual] = useState(false)
+    // Eliminar estados para filtro por mes y año
+    // const mesActual = new Date().getMonth() + 1;
+    // const añoActual = new Date().getFullYear();
+    // const [mes, setMes] = useState(mesActual.toString())
+    // const [año, setAño] = useState(añoActual.toString())
+    // const [usarFiltroMensual, setUsarFiltroMensual] = useState(false)
 
     // Función para buscar datos con mejor manejo de errores y más opciones de filtrado
     const fetchData = async () => {
@@ -34,83 +34,65 @@ export default function Resumen() {
                 return;
             }
             
-            console.log('Estado usarFiltroMensual:', usarFiltroMensual);
+            // Usar filtro por rango de fechas
+            const inicioParam = fechaInicio;
+            const finParam = fechaFin || undefined;
             
-            let respuesta = null;
+            console.log('Consultando con rango de fechas:', {
+                inicio: inicioParam,
+                fin: finParam,
+                rut: rut || undefined
+            });
             
-            if (usarFiltroMensual && mes && año) {
-                console.log('Consultando con filtro mensual:', {
-                    mes: mes,
-                    año: año,
-                    rut: rut || undefined
-                });
+            try {
+                // Usar el método normal con fechas
+                const respuesta = await getResumen(
+                    inicioParam,
+                    finParam,
+                    rut || undefined
+                );
                 
-                try {
-                    // Usar el endpoint específico para filtro mensual
-                    respuesta = await getResumenMensual(
-                        mes,
-                        año,
-                        rut || undefined
-                    );
-                } catch (mensualError) {
-                    console.error('Error en filtro mensual:', mensualError);
-                    setError(`Error al consultar por mes y año: ${mensualError.message}`);
+                console.log('Respuesta recibida:', respuesta);
+                
+                // Verificar si la respuesta es un objeto con mensaje (sin resultados)
+                if (respuesta && !Array.isArray(respuesta) && respuesta.mensaje) {
+                    setError(respuesta.mensaje);
+                    setData([]);
                     setLoading(false);
                     return;
                 }
-            } else if (fechaInicio) {
-                // Usar filtro por rango de fechas
-                const inicioParam = fechaInicio;
-                const finParam = fechaFin || undefined;
                 
-                console.log('Consultando con rango de fechas:', {
-                    inicio: inicioParam,
-                    fin: finParam,
-                    rut: rut || undefined
-                });
+                // Asegurarse de que respuesta sea un array
+                const datosArray = Array.isArray(respuesta) ? respuesta : (respuesta && respuesta.data ? respuesta.data : []);
                 
-                try {
-                    // Usar el método normal con fechas
-                    respuesta = await getResumen(
-                        inicioParam,
-                        finParam,
-                        rut || undefined
-                    );
-                } catch (rangoError) {
-                    console.error('Error en rango de fechas:', rangoError);
-                    setError(`Error al consultar por rango de fechas: ${rangoError.message}`);
-                    setLoading(false);
-                    return;
+                // Procesar y ordenar los resultados
+                if (datosArray.length > 0) {
+                    // Establecer estado AUTORIZADO por defecto si no está definido
+                    const datosConEstadoDefecto = datosArray.map(item => ({
+                        ...item,
+                        estado: item.estado || 'AUTORIZADO'
+                    }));
+                    
+                    // Ordenar por fecha y nombre
+                    datosConEstadoDefecto.sort((a, b) => {
+                        if (!a.fecha || !b.fecha) return 0;
+                        const fechaComp = a.fecha.localeCompare(b.fecha);
+                        if (fechaComp === 0) {
+                            return a.nombre.localeCompare(b.nombre);
+                        }
+                        return fechaComp;
+                    });
+                    
+                    setData(datosConEstadoDefecto);
+                } else {
+                    setData([]);
+                    setError('No se encontraron resultados para los filtros seleccionados');
                 }
-            } else {
-                setError('Debe proporcionar una fecha de inicio o seleccionar mes y año');
+            } catch (rangoError) {
+                console.error('Error en rango de fechas:', rangoError);
+                setError(`Error al consultar por rango de fechas: ${rangoError.message}`);
                 setLoading(false);
                 return;
-            }
-            
-            console.log('Respuesta recibida:', respuesta);
-            
-            // Procesar y ordenar los resultados
-            if (Array.isArray(respuesta) && respuesta.length > 0) {
-                // Establecer estado AUTORIZADO por defecto si no está definido
-                const datosConEstadoDefecto = respuesta.map(item => ({
-                    ...item,
-                    estado: item.estado || 'AUTORIZADO'
-                }));
-                
-                // Ordenar por fecha y nombre
-                datosConEstadoDefecto.sort((a, b) => {
-                    const fechaComp = a.fecha.localeCompare(b.fecha);
-                    if (fechaComp === 0) {
-                        return a.nombre.localeCompare(b.nombre);
-                    }
-                    return fechaComp;
-                });
-                
-                setData(datosConEstadoDefecto);
-            } else {
-                setData([]);
-                setError('No se encontraron resultados para los filtros seleccionados');
             }
         } catch (err) {
             console.error('Error general:', err);
@@ -137,15 +119,15 @@ export default function Resumen() {
             return;
         }
         
-        console.log('Botón buscar presionado, usarFiltroMensual:', usarFiltroMensual);
-        console.log('Valores del formulario - mes:', mes, 'año:', año, 'rut:', rut);
+        console.log('Botón buscar presionado');
+        console.log('Valores del formulario - inicio:', fechaInicio, 'fin:', fechaFin, 'rut:', rut);
         fetchData();
     };
     
-    // Alternador para cambiar entre filtro mensual y rango de fechas
-    const toggleFiltroMensual = () => {
-        setUsarFiltroMensual(!usarFiltroMensual);
-    };
+    // Eliminar función para alternar entre tipos de filtro
+    // const toggleFiltroMensual = () => {
+    //     setUsarFiltroMensual(!usarFiltroMensual);
+    // };
 
     // Formatear RUT mientras se escribe - permitir búsqueda por números parciales
     const formatearRut = (value) => {
@@ -258,8 +240,8 @@ export default function Resumen() {
                         <div className="card-body p-4">
                             <h1 className="h4 mb-4 text-primary">Resumen de Asistencia</h1>
 
-                            {/* Selector de tipo de filtro */}
-                            <div className="d-flex justify-content-start mb-3">
+                            {/* Eliminar selector de tipo de filtro */}
+                            {/* <div className="d-flex justify-content-start mb-3">
                                 <div className="form-check form-check-inline">
                                     <input
                                         className="form-check-input"
@@ -286,83 +268,36 @@ export default function Resumen() {
                                         Filtro por mes y año
                                     </label>
                                 </div>
-                            </div>
+                            </div> */}
 
                             {/* Filtros */}
                             <form onSubmit={handleBuscar}>
                                 <div className="row mb-4 g-3">
-                                    {!usarFiltroMensual ? (
-                                        <>
-                                            <div className="col-md-3">
-                                                <div className="form-floating">
-                                                    <input
-                                                        type="date"
-                                                        className="form-control"
-                                                        id="fechaInicio"
-                                                        value={fechaInicio}
-                                                        onChange={e => setFechaInicio(e.target.value)}
-                                                        required={!usarFiltroMensual}
-                                                    />
-                                                    <label htmlFor="fechaInicio">Fecha inicio *</label>
-                                                </div>
-                                            </div>
-                                            <div className="col-md-3">
-                                                <div className="form-floating">
-                <input
-                    type="date"
-                                                        className="form-control"
-                                                        id="fechaFin"
-                                                        value={fechaFin}
-                                                        onChange={e => setFechaFin(e.target.value)}
-                                                    />
-                                                    <label htmlFor="fechaFin">Fecha fin</label>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="col-md-3">
-                                                <div className="form-floating">
-                                                    <select
-                                                        className="form-select"
-                                                        id="mes"
-                                                        value={mes}
-                                                        onChange={e => setMes(e.target.value)}
-                                                        required={usarFiltroMensual}
-                                                    >
-                                                        <option value="1">Enero</option>
-                                                        <option value="2">Febrero</option>
-                                                        <option value="3">Marzo</option>
-                                                        <option value="4">Abril</option>
-                                                        <option value="5">Mayo</option>
-                                                        <option value="6">Junio</option>
-                                                        <option value="7">Julio</option>
-                                                        <option value="8">Agosto</option>
-                                                        <option value="9">Septiembre</option>
-                                                        <option value="10">Octubre</option>
-                                                        <option value="11">Noviembre</option>
-                                                        <option value="12">Diciembre</option>
-                                                    </select>
-                                                    <label htmlFor="mes">Mes</label>
-                                                </div>
-                                            </div>
-                                            <div className="col-md-3">
-                                                <div className="form-floating">
-                                                    <input
-                                                        type="number"
-                                                        className="form-control"
-                                                        id="año"
-                                                        value={año}
-                                                        onChange={e => setAño(e.target.value)}
-                                                        min="2000"
-                                                        max="2050"
-                                                        required={usarFiltroMensual}
-                                                    />
-                                                    <label htmlFor="año">Año</label>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
+                                    <div className="col-md-3">
+                                        <div className="form-floating">
+                                            <input
+                                                type="date"
+                                                className="form-control"
+                                                id="fechaInicio"
+                                                value={fechaInicio}
+                                                onChange={e => setFechaInicio(e.target.value)}
+                                                required
+                                            />
+                                            <label htmlFor="fechaInicio">Fecha inicio *</label>
+                                        </div>
+                                    </div>
+                                    <div className="col-md-3">
+                                        <div className="form-floating">
+                                            <input
+                                                type="date"
+                                                className="form-control"
+                                                id="fechaFin"
+                                                value={fechaFin}
+                                                onChange={e => setFechaFin(e.target.value)}
+                                            />
+                                            <label htmlFor="fechaFin">Fecha fin</label>
+                                        </div>
+                                    </div>
                                     <div className="col-md-3">
                                         <div className="form-floating">
                                             <input
@@ -618,8 +553,14 @@ export default function Resumen() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="alert alert-info text-center">
-                                    No hay registros para mostrar
+                                <div className="alert alert-info text-center py-4">
+                                    <i className="bi bi-info-circle me-2"></i>
+                                    No hay registros para mostrar para los filtros seleccionados
+                                    {fechaInicio && (
+                                        <div className="mt-2 small text-muted">
+                                            <strong>Filtros aplicados:</strong> {fechaInicio && `Desde: ${fechaInicio}`} {fechaFin && ` | Hasta: ${fechaFin}`} {rut && ` | RUT: ${rut}`}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

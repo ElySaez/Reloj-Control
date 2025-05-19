@@ -69,7 +69,18 @@ export const getResumen = async (fechaInicio, fechaFin, rut) => {
         }
         
         const data = await response.json();
-        return Array.isArray(data) ? data : [];
+        
+        // Verificar el tipo de respuesta
+        if (Array.isArray(data)) {
+            // Si es un array, devolverlo directamente (respuesta normal)
+            return data;
+        } else if (typeof data === 'object' && data !== null) {
+            // Si es un objeto (posiblemente con mensaje y data), devolverlo tal cual
+            return data;
+        }
+        
+        // Si no es ni array ni objeto, convertir a array vacío por defecto
+        return [];
         
     } catch (error) {
         console.error('Error en getResumen:', error);
@@ -121,7 +132,18 @@ export const getResumenMensual = async (mes, año, rut) => {
         }
         
         const data = await response.json();
-        return Array.isArray(data) ? data : [];
+        
+        // Verificar el tipo de respuesta
+        if (Array.isArray(data)) {
+            // Si es un array, devolverlo directamente (respuesta normal)
+            return data;
+        } else if (typeof data === 'object' && data !== null) {
+            // Si es un objeto (posiblemente con mensaje y data), devolverlo tal cual
+            return data;
+        }
+        
+        // Si no es ni array ni objeto, convertir a array vacío por defecto
+        return [];
         
     } catch (error) {
         console.error('Error en getResumenMensual:', error);
