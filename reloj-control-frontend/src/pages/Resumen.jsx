@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getResumen, getResumenMensual, actualizarEstadoAsistencia } from '../api/index'
+import { getResumen, getResumenMensual, actualizarEstadoAsistencia, getMarcasPorEmpleadoYFechas, marcarAsistencia } from '../api/index'
 
 export default function Resumen() {
     // Inicializar con una fecha predeterminada en formato correcto
@@ -12,6 +12,19 @@ export default function Resumen() {
     const [loading, setLoading] = useState(false)
     const [savingState, setSavingState] = useState(false) // Para indicar cambios de estado en proceso
     const [savingStateId, setSavingStateId] = useState(null)
+    
+    // Estados para modal de edición
+    const [showModal, setShowModal] = useState(false)
+    const [registroSeleccionado, setRegistroSeleccionado] = useState(null)
+    const [marcasDia, setMarcasDia] = useState([])
+    const [marcasAnterior, setMarcasAnterior] = useState([])
+    const [marcasSiguiente, setMarcasSiguiente] = useState([])
+    const [tabActivo, setTabActivo] = useState('marcasDisponibles')
+    const [marcaEntradaSeleccionada, setMarcaEntradaSeleccionada] = useState(null)
+    const [marcaSalidaSeleccionada, setMarcaSalidaSeleccionada] = useState(null)
+    const [entradaManual, setEntradaManual] = useState('08:00')
+    const [salidaManual, setSalidaManual] = useState('17:00')
+    const [guardandoMarcas, setGuardandoMarcas] = useState(false)
     
     // Eliminar estados para filtro por mes y año
     // const mesActual = new Date().getMonth() + 1;
@@ -232,6 +245,216 @@ export default function Resumen() {
         }
     }
 
+    // Función para abrir el modal y cargar las marcas del día
+    const handleOpenModal = async (registro) => {
+        try {
+            // Guardar el registro seleccionado
+            setRegistroSeleccionado(registro);
+            
+            // Obtener fecha en formato YYYY-MM-DD
+            const partesFecha = registro.fecha.split('/');
+            const fechaFormateada = `${partesFecha[2]}-${partesFecha[1].padStart(2, '0')}-${partesFecha[0].padStart(2, '0')}`;
+            
+            // Inicializar valores por defecto para datetime-local
+            // Formato necesario: YYYY-MM-DDThh:mm
+            const fechaHoraEntrada = `${fechaFormateada}T${registro.entrada || '08:00'}`;
+            const fechaHoraSalida = `${fechaFormateada}T${registro.salida || '17:00'}`;
+            
+            setEntradaManual(fechaHoraEntrada);
+            setSalidaManual(fechaHoraSalida);
+            setMarcaEntradaSeleccionada(null);
+            setMarcaSalidaSeleccionada(null);
+            
+            // Mostrar modal mientras cargamos los datos
+            setShowModal(true);
+            
+            // Intentar obtener las marcas del empleado para un rango de 3 días
+            try {
+                // Usamos el nuevo endpoint que filtra por RUT y fecha
+                const marcasData = await getMarcasPorEmpleadoYFechas(
+                    registro.rut,
+                    fechaFormateada,
+                    // No pasamos fecha fin, el backend calculará automáticamente 2 días después
+                );
+                
+                console.log('Marcas recibidas:', marcasData);
+                
+                // Agrupar marcas por día y tipo
+                const marcasPorDia = marcasData.marcasPorDia || {};
+                
+                // Obtener marcas del día seleccionado
+                const marcasDelDia = marcasPorDia[fechaFormateada] || [];
+                const entradasDia = marcasDelDia.filter(m => m.tipo === 'ENTRADA');
+                const salidasDia = marcasDelDia.filter(m => m.tipo === 'SALIDA');
+                
+                // Obtener las fechas de los días anterior y siguiente
+                const fechaAnterior = new Date(fechaFormateada);
+                fechaAnterior.setDate(fechaAnterior.getDate() - 1);
+                const fechaAnteriorStr = fechaAnterior.toISOString().split('T')[0];
+                
+                const fechaSiguiente = new Date(fechaFormateada);
+                fechaSiguiente.setDate(fechaSiguiente.getDate() + 1);
+                const fechaSiguienteStr = fechaSiguiente.toISOString().split('T')[0];
+                
+                // Obtener marcas de los días anterior y siguiente
+                const marcasDiaAnterior = marcasPorDia[fechaAnteriorStr] || [];
+                const marcasDiaSiguiente = marcasPorDia[fechaSiguienteStr] || [];
+                
+                const entradasAnterior = marcasDiaAnterior.filter(m => m.tipo === 'ENTRADA');
+                const salidasAnterior = marcasDiaAnterior.filter(m => m.tipo === 'SALIDA');
+                const entradasSiguiente = marcasDiaSiguiente.filter(m => m.tipo === 'ENTRADA');
+                const salidasSiguiente = marcasDiaSiguiente.filter(m => m.tipo === 'SALIDA');
+                
+                // Guardar marcas clasificadas
+                setMarcasDia({
+                    entradas: entradasDia,
+                    salidas: salidasDia
+                });
+                
+                setMarcasAnterior({
+                    entradas: entradasAnterior,
+                    salidas: salidasAnterior
+                });
+                
+                setMarcasSiguiente({
+                    entradas: entradasSiguiente,
+                    salidas: salidasSiguiente
+                });
+                
+            } catch (error) {
+                console.error('Error al cargar marcas:', error);
+                setError('No se pudieron cargar las marcas. ' + error.message);
+            }
+            
+        } catch (error) {
+            console.error('Error al abrir modal:', error);
+            setError('Error al abrir el editor de marcas: ' + error.message);
+        }
+    };
+    
+    // Función para formatear fecha para backend (YYYY-MM-DDThh:mm:ss.SSS)
+    const formatearFechaCompleta = (fechaStr) => {
+        // Si ya tiene segundos y milisegundos, retornarla tal cual
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/.test(fechaStr)) {
+            return fechaStr;
+        }
+        
+        // Si es formato datetime-local (YYYY-MM-DDThh:mm), añadir segundos y milisegundos
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fechaStr)) {
+            return `${fechaStr}:00.000`;
+        }
+        
+        // Cualquier otro caso, usar el objeto Date
+        try {
+            const fecha = new Date(fechaStr);
+            if (isNaN(fecha.getTime())) {
+                throw new Error(`Fecha inválida: ${fechaStr}`);
+            }
+            
+            const anio = fecha.getFullYear();
+            const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+            const dia = String(fecha.getDate()).padStart(2, '0');
+            const hora = String(fecha.getHours()).padStart(2, '0');
+            const minutos = String(fecha.getMinutes()).padStart(2, '0');
+            const segundos = String(fecha.getSeconds()).padStart(2, '0');
+            const milisegundos = String(fecha.getMilliseconds()).padStart(3, '0');
+            
+            return `${anio}-${mes}-${dia}T${hora}:${minutos}:${segundos}.${milisegundos}`;
+        } catch (e) {
+            console.error('Error al formatear fecha:', e);
+            throw e;
+        }
+    };
+
+    // Función para guardar los cambios de marcas
+    const handleGuardarMarcas = async () => {
+        try {
+            setGuardandoMarcas(true);
+            
+            // Verificar si tenemos el empleado ID
+            if (!registroSeleccionado || !registroSeleccionado.rut) {
+                throw new Error('No se pudo identificar al empleado');
+            }
+            
+            // Obtener fecha en formato YYYY-MM-DD
+            const partesFecha = registroSeleccionado.fecha.split('/');
+            const fechaFormateada = `${partesFecha[2]}-${partesFecha[1].padStart(2, '0')}-${partesFecha[0].padStart(2, '0')}`;
+            
+            // Registrar marca de entrada si se seleccionó manual
+            if (tabActivo === 'edicionManual') {
+                // Obtener el ID del empleado
+                const empleadoId = registroSeleccionado.empleadoId || 1; // ID por defecto si no existe
+                
+                // Crear una marca de entrada con la fecha y hora específicas
+                if (entradaManual) {
+                    // Formatear la fecha según requerido por el backend
+                    const fechaHoraEntrada = formatearFechaCompleta(entradaManual);
+                    console.log(`Registrando entrada manual: ${fechaHoraEntrada}`);
+                    await marcarAsistencia(empleadoId, 'ENTRADA', fechaHoraEntrada);
+                }
+                
+                // También registrar la salida si está disponible
+                if (salidaManual) {
+                    // Formatear la fecha según requerido por el backend
+                    const fechaHoraSalida = formatearFechaCompleta(salidaManual);
+                    console.log(`Registrando salida manual: ${fechaHoraSalida}`);
+                    await marcarAsistencia(empleadoId, 'SALIDA', fechaHoraSalida);
+                }
+            } else {
+                // Usar las marcas existentes seleccionadas
+                if (marcaEntradaSeleccionada) {
+                    // Actualizar estado a AUTORIZADO de la marca seleccionada
+                    if (marcaEntradaSeleccionada.id) {
+                        console.log(`Autorizando marca de entrada: ${marcaEntradaSeleccionada.id}`);
+                        await actualizarEstadoAsistencia(marcaEntradaSeleccionada.id, 'AUTORIZADO');
+                    }
+                }
+                
+                if (marcaSalidaSeleccionada) {
+                    // Actualizar estado a AUTORIZADO de la marca seleccionada
+                    if (marcaSalidaSeleccionada.id) {
+                        console.log(`Autorizando marca de salida: ${marcaSalidaSeleccionada.id}`);
+                        await actualizarEstadoAsistencia(marcaSalidaSeleccionada.id, 'AUTORIZADO');
+                    }
+                }
+            }
+            
+            // Cerrar modal y refrescar datos
+            setShowModal(false);
+            await fetchData();
+            
+        } catch (error) {
+            console.error('Error al guardar marcas:', error);
+            setError('Error al guardar las marcas: ' + error.message);
+        } finally {
+            setGuardandoMarcas(false);
+        }
+    };
+    
+    // Función para cerrar el modal
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setRegistroSeleccionado(null);
+        setMarcasDia([]);
+        setMarcasAnterior([]);
+        setMarcasSiguiente([]);
+    };
+    
+    // Función para cambiar el tab activo
+    const handleChangeTab = (tab) => {
+        setTabActivo(tab);
+    };
+    
+    // Función para seleccionar una marca de entrada
+    const handleSelectEntrada = (marca) => {
+        setMarcaEntradaSeleccionada(marca);
+    };
+    
+    // Función para seleccionar una marca de salida
+    const handleSelectSalida = (marca) => {
+        setMarcaSalidaSeleccionada(marca);
+    };
+
     return (
         <div className="container py-4">
             <div className="row justify-content-center">
@@ -362,6 +585,7 @@ export default function Resumen() {
                                                     <th className="text-end">H.E. 50%</th>
                                                     <th className="text-center">Estado</th>
                                                     <th>Observaciones</th>
+                                                    <th className="text-center">Editar</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -440,6 +664,14 @@ export default function Resumen() {
                                                                     {registro.observaciones || ''}
                                                                 </small>
                                                             </td>
+                                                            <td className="text-center">
+                                                                <button 
+                                                                    className="btn btn-sm btn-primary"
+                                                                    onClick={() => handleOpenModal(registro)}
+                                                                >
+                                                                    <i className="bi bi-pencil-square"></i>
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
@@ -451,18 +683,18 @@ export default function Resumen() {
                                     <div className="card mb-4">
                                         <div className="card-header bg-primary text-white">
                                             Resumen de Horas Extras
-            </div>
+                                        </div>
                                         <div className="table-responsive">
                                             <table className="table mb-0">
-                <thead>
+                                                <thead>
                                                     <tr className="table-light">
                                                         <th>Estado</th>
                                                         <th className="text-center">H.E. 25%</th>
                                                         <th className="text-center">H.E. 50%</th>
                                                         <th className="text-center">Total</th>
-                </tr>
-                </thead>
-                <tbody>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
                                                     {/* Calcular resumen por estado */}
                                                     {(() => {
                                                         // Agrupar por estado y calcular totales
@@ -531,8 +763,8 @@ export default function Resumen() {
                                                             </>
                                                         );
                                                     })()}
-                </tbody>
-            </table>
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                     
@@ -567,6 +799,165 @@ export default function Resumen() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal para editar marcas */}
+            {showModal && (
+                <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
+                    <div className="modal-dialog modal-lg">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">
+                                    Editar Marcas - {registroSeleccionado?.fecha}
+                                </h5>
+                                <button 
+                                    type="button" 
+                                    className="btn-close" 
+                                    onClick={handleCloseModal}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                {/* Sección de marca de entrada */}
+                                <div className="mb-4">
+                                    <h6>Marca de Entrada</h6>
+                                    <ul className="nav nav-tabs">
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-link ${tabActivo === 'marcasDisponibles' ? 'active' : ''}`}
+                                                onClick={() => handleChangeTab('marcasDisponibles')}
+                                            >
+                                                Marcas Disponibles
+                                            </button>
+                                        </li>
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-link ${tabActivo === 'edicionManual' ? 'active' : ''}`}
+                                                onClick={() => handleChangeTab('edicionManual')}
+                                            >
+                                                Edición Manual
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div className="tab-content border border-top-0 p-3">
+                                        {tabActivo === 'marcasDisponibles' ? (
+                                            <div className="list-group">
+                                                {marcasDia?.entradas?.map((marca, index) => (
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${marcaEntradaSeleccionada?.id === marca.id ? 'active' : ''}`}
+                                                        onClick={() => handleSelectEntrada(marca)}
+                                                    >
+                                                        <span>{new Date(marca.fechaHora).toLocaleDateString()}</span>
+                                                        <span className="badge bg-primary rounded-pill">
+                                                            {new Date(marca.fechaHora).toLocaleTimeString()}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                                {(!marcasDia?.entradas || marcasDia.entradas.length === 0) && (
+                                                    <div className="text-center p-3">
+                                                        No hay marcas de entrada disponibles
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="form-group">
+                                                <label htmlFor="entradaManual">Fecha y hora de entrada:</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    id="entradaManual"
+                                                    className="form-control"
+                                                    value={entradaManual}
+                                                    onChange={(e) => setEntradaManual(e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* Sección de marca de salida */}
+                                <div className="mb-4">
+                                    <h6>Marca de Salida</h6>
+                                    <ul className="nav nav-tabs">
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-link ${tabActivo === 'marcasDisponibles' ? 'active' : ''}`}
+                                                onClick={() => handleChangeTab('marcasDisponibles')}
+                                            >
+                                                Marcas Disponibles
+                                            </button>
+                                        </li>
+                                        <li className="nav-item">
+                                            <button 
+                                                className={`nav-link ${tabActivo === 'edicionManual' ? 'active' : ''}`}
+                                                onClick={() => handleChangeTab('edicionManual')}
+                                            >
+                                                Edición Manual
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div className="tab-content border border-top-0 p-3">
+                                        {tabActivo === 'marcasDisponibles' ? (
+                                            <div className="list-group">
+                                                {marcasDia?.salidas?.map((marca, index) => (
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${marcaSalidaSeleccionada?.id === marca.id ? 'active' : ''}`}
+                                                        onClick={() => handleSelectSalida(marca)}
+                                                    >
+                                                        <span>{new Date(marca.fechaHora).toLocaleDateString()}</span>
+                                                        <span className="badge bg-primary rounded-pill">
+                                                            {new Date(marca.fechaHora).toLocaleTimeString()}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                                {(!marcasDia?.salidas || marcasDia.salidas.length === 0) && (
+                                                    <div className="text-center p-3">
+                                                        No hay marcas de salida disponibles
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="form-group">
+                                                <label htmlFor="salidaManual">Fecha y hora de salida:</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    id="salidaManual"
+                                                    className="form-control"
+                                                    value={salidaManual}
+                                                    onChange={(e) => setSalidaManual(e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button 
+                                    type="button" 
+                                    className="btn btn-secondary"
+                                    onClick={handleCloseModal}
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-primary"
+                                    onClick={handleGuardarMarcas}
+                                    disabled={guardandoMarcas}
+                                >
+                                    {guardandoMarcas ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                            Guardando...
+                                        </>
+                                    ) : 'Guardar Cambios'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
