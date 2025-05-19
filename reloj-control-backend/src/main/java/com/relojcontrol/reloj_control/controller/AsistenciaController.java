@@ -67,11 +67,11 @@ public class AsistenciaController {
     })
     @PostMapping
     public ResponseEntity<?> marcar(
-            @Parameter(description = "ID del empleado") @RequestParam Long empleadoId,
+            @Parameter(description = "ID del empleado") @RequestParam String empleadoId,
             @Parameter(description = "Tipo de marca (ENTRADA o SALIDA)") @RequestParam String tipo,
             @Parameter(description = "Hora de marca") @RequestParam String fecha) {
         try {
-            Empleado emp = eRepo.findById(Math.toIntExact(empleadoId))
+            Empleado emp = eRepo.findByRut(empleadoId)
                     .orElseThrow(() -> new IllegalArgumentException("Empleado no encontrado"));
             Asistencia a = new Asistencia(emp, LocalDateTime.parse(fecha), tipo);
             return ResponseEntity.ok(asRepo.save(a));
