@@ -42,9 +42,9 @@ public class AsistenciaController {
     private final UsuarioRepository uRepo;
 
     public AsistenciaController(AsistenciaRepository asRepo,
-                               EmpleadoRepository eRepo,
-                               AsistenciaService asistenciaService,
-                               UsuarioRepository uRepo) {
+                                EmpleadoRepository eRepo,
+                                AsistenciaService asistenciaService,
+                                UsuarioRepository uRepo) {
         this.asRepo = asRepo;
         this.eRepo = eRepo;
         this.asistenciaService = asistenciaService;
@@ -55,15 +55,15 @@ public class AsistenciaController {
      * Registra una marca de entrada o salida para un empleado.
      *
      * @param empleadoId ID del empleado
-     * @param tipo Tipo de marca ("ENTRADA" o "SALIDA")
+     * @param tipo       Tipo de marca ("ENTRADA" o "SALIDA")
      * @return La asistencia registrada
      */
     @Operation(summary = "Registrar marca de asistencia",
-              description = "Registra una marca de entrada o salida para un empleado")
+            description = "Registra una marca de entrada o salida para un empleado")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Marca registrada exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
-        @ApiResponse(responseCode = "404", description = "Empleado no encontrado")
+            @ApiResponse(responseCode = "200", description = "Marca registrada exitosamente"),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+            @ApiResponse(responseCode = "404", description = "Empleado no encontrado")
     })
     @PostMapping
     public ResponseEntity<?> marcar(
@@ -86,7 +86,7 @@ public class AsistenciaController {
      * @return Lista de asistencias del empleado
      */
     @Operation(summary = "Obtener asistencias por empleado",
-              description = "Obtiene todas las asistencias de un empleado específico")
+            description = "Obtiene todas las asistencias de un empleado específico")
     @GetMapping("/empleado/{id}")
     public ResponseEntity<?> porEmpleado(@PathVariable("id") Long id) {
         try {
@@ -101,25 +101,24 @@ public class AsistenciaController {
      * Obtiene el resumen de asistencias para una fecha específica.
      *
      * @param inicio Fecha inicio (formato: yyyy-MM-dd)
-     * @param fin Fecha fin (formato: yyyy-MM-dd)
-     * @param rut RUT del empleado (parcial o completo)
+     * @param fin    Fecha fin (formato: yyyy-MM-dd)
+     * @param rut    RUT del empleado (parcial o completo)
      * @return Lista de resúmenes de asistencia
      */
     @Operation(summary = "Obtener resumen de asistencias",
-              description = "Obtiene el resumen de asistencias para una fecha específica")
+            description = "Obtiene el resumen de asistencias para una fecha específica")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Resumen obtenido exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Fecha inválida")
+            @ApiResponse(responseCode = "200", description = "Resumen obtenido exitosamente"),
+            @ApiResponse(responseCode = "400", description = "Fecha inválida")
     })
     @GetMapping("/resumen")
     public ResponseEntity<?> getResumen(
             @RequestParam(required = false) LocalDate inicio,
             @RequestParam(required = false) LocalDate fin,
-            @RequestParam(required = false) String rut)
-    {
+            @RequestParam(required = false) String rut) {
         try {
             logger.info("Obteniendo resumen para fechas: {} a {}, RUT: {}", inicio, fin, rut);
-            
+
             if (inicio == null) {
                 return ResponseEntity.badRequest().body("La fecha de inicio es requerida");
             }
@@ -128,7 +127,7 @@ public class AsistenciaController {
             if (fin == null) {
                 fin = inicio;
             }
-            
+
             // Validar que el RUT tenga al menos 4 caracteres si se proporciona
             if (rut != null && !rut.isEmpty()) {
                 // Eliminar puntos y guiones para contar solo dígitos
@@ -138,26 +137,8 @@ public class AsistenciaController {
                 }
             }
 
-            // Asegurar que existan datos para estas fechas (creará datos de prueba si es necesario)
-            asegurarDatosParaFechas(inicio, fin, rut);
+            List<ResumenAsistenciaDTO> resumen = asistenciaService.resumenPorRutParcialYRangoFechas(rut, inicio, fin);
 
-            List<ResumenAsistenciaDTO> resumen;
-
-                if (rut.contains("-")) {
-                    // RUT exacto con formato (ej: 12.345.678-9)
-                    resumen = asistenciaService.resumenPorRutYRangoFechas(rut, inicio, fin);
-                } else {
-                    // Intentar primero búsqueda exacta al principio del RUT
-                    resumen = asistenciaService.resumenPorRutParcialYRangoFechas(rut, inicio, fin);
-                    
-                    // Si no hay resultados, intentar búsqueda flexible
-                    if (resumen.isEmpty()) {
-                        logger.info("No se encontraron resultados con búsqueda estándar, intentando búsqueda flexible");
-                        resumen = asistenciaService.resumenPorRutParcialFlexibleYRangoFechas(rut, inicio, fin);
-                    }
-                }
-
-            
             // Ordenar resumen por fecha y luego por nombre de empleado
             if (!resumen.isEmpty()) {
                 resumen.sort((a, b) -> {
@@ -167,7 +148,7 @@ public class AsistenciaController {
                     }
                     return fechaComp;
                 });
-                
+
                 logger.info("Resumen generado exitosamente con {} registros", resumen.size());
                 return ResponseEntity.ok(resumen);
             } else {
@@ -175,15 +156,15 @@ public class AsistenciaController {
                 Map<String, Object> respuestaVacia = new HashMap<>();
                 respuestaVacia.put("mensaje", "No se encontraron registros para los filtros seleccionados");
                 respuestaVacia.put("filtros", Map.of(
-                    "inicio", inicio,
-                    "fin", fin,
-                    "rut", rut == null ? "" : rut
+                        "inicio", inicio,
+                        "fin", fin,
+                        "rut", rut == null ? "" : rut
                 ));
                 respuestaVacia.put("data", new ArrayList<>());
-                
+
                 return ResponseEntity.ok(respuestaVacia);
             }
-            
+
         } catch (Exception e) {
             logger.error("Error al generar resumen", e);
             return ResponseEntity.badRequest().body("Error al generar resumen: " + e.getMessage());
@@ -193,16 +174,16 @@ public class AsistenciaController {
     /**
      * Actualiza el estado de una asistencia.
      *
-     * @param id ID de la asistencia
+     * @param id     ID de la asistencia
      * @param estado Nuevo estado (AUTORIZADO, RECHAZADO, PENDIENTE)
      * @return Asistencia actualizada
      */
     @Operation(summary = "Actualizar estado de asistencia",
-              description = "Actualiza el estado de una asistencia (AUTORIZADO, RECHAZADO, PENDIENTE)")
+            description = "Actualiza el estado de una asistencia (AUTORIZADO, RECHAZADO, PENDIENTE)")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Estado actualizado exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
-        @ApiResponse(responseCode = "404", description = "Asistencia no encontrada")
+            @ApiResponse(responseCode = "200", description = "Estado actualizado exitosamente"),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+            @ApiResponse(responseCode = "404", description = "Asistencia no encontrada")
     })
     @PutMapping("/estado/{id}")
     public ResponseEntity<?> actualizarEstado(
@@ -210,16 +191,16 @@ public class AsistenciaController {
             @RequestParam String estado) {
         try {
             logger.info("Actualizando estado de asistencia: id={}, estado={}", id, estado);
-            
+
             // Validar que el estado sea uno de los permitidos
             if (!estado.equals("AUTORIZADO") && !estado.equals("RECHAZADO") && !estado.equals("PENDIENTE")) {
                 return ResponseEntity.badRequest()
-                    .body("Estado inválido. Debe ser AUTORIZADO, RECHAZADO o PENDIENTE");
+                        .body("Estado inválido. Debe ser AUTORIZADO, RECHAZADO o PENDIENTE");
             }
-            
+
             // Buscar la asistencia
             boolean actualizado = asistenciaService.actualizarEstado(id, estado);
-            
+
             if (actualizado) {
                 return ResponseEntity.ok().body("Estado actualizado correctamente");
             } else {
@@ -238,43 +219,43 @@ public class AsistenciaController {
     public ResponseEntity<?> debugInfo() {
         try {
             Map<String, Object> info = new HashMap<>();
-            
+
             // Obtener todas las asistencias
             List<Asistencia> asistencias = asRepo.findAll();
             info.put("total_asistencias", asistencias.size());
-            
+
             // Obtener todos los empleados
             List<Empleado> empleados = eRepo.findAll();
             info.put("total_empleados", empleados.size());
-            
+
             // Datos de empleados
             List<Map<String, Object>> datosEmpleados = empleados.stream()
-                .map(e -> {
-                    Map<String, Object> datos = new HashMap<>();
-                    datos.put("id", e.getIdEmpleado());
-                    datos.put("nombre", e.getNombreCompleto());
-                    datos.put("rut", e.getRut());
-                    return datos;
-                })
-                .collect(Collectors.toList());
+                    .map(e -> {
+                        Map<String, Object> datos = new HashMap<>();
+                        datos.put("id", e.getIdEmpleado());
+                        datos.put("nombre", e.getNombreCompleto());
+                        datos.put("rut", e.getRut());
+                        return datos;
+                    })
+                    .collect(Collectors.toList());
             info.put("empleados", datosEmpleados);
-            
+
             // Muestra de asistencias (primeras 10)
             List<Map<String, Object>> muestraAsistencias = asistencias.stream()
-                .limit(10)
-                .map(a -> {
-                    Map<String, Object> datos = new HashMap<>();
-                    datos.put("id", a.getId());
-                    datos.put("empleado_id", a.getEmpleado().getIdEmpleado());
-                    datos.put("empleado_rut", a.getEmpleado().getRut());
-                    datos.put("fecha_hora", a.getFechaHora());
-                    datos.put("tipo", a.getTipo());
-                    datos.put("estado", a.getEstado());
-                    return datos;
-                })
-                .collect(Collectors.toList());
+                    .limit(10)
+                    .map(a -> {
+                        Map<String, Object> datos = new HashMap<>();
+                        datos.put("id", a.getId());
+                        datos.put("empleado_id", a.getEmpleado().getIdEmpleado());
+                        datos.put("empleado_rut", a.getEmpleado().getRut());
+                        datos.put("fecha_hora", a.getFechaHora());
+                        datos.put("tipo", a.getTipo());
+                        datos.put("estado", a.getEstado());
+                        return datos;
+                    })
+                    .collect(Collectors.toList());
             info.put("muestra_asistencias", muestraAsistencias);
-            
+
             return ResponseEntity.ok(info);
         } catch (Exception e) {
             logger.error("Error al obtener información de depuración", e);
@@ -282,79 +263,47 @@ public class AsistenciaController {
         }
     }
 
-    /**
-     * Método para asegurar que existan datos para las fechas solicitadas
-     * Creará datos de prueba si es necesario y las fechas son futuras
-     */
-    private List<Asistencia> asegurarDatosParaFechas(LocalDate inicio, LocalDate fin, String rut) {
-        try {
-            LocalDateTime desde = inicio.atStartOfDay();
-            LocalDateTime hasta = fin.plusDays(1).atStartOfDay();
-            
-            // Buscar asistencias existentes
-            List<Asistencia> asistencias;
-            
-            if (rut != null && !rut.isEmpty()) {
-                if (rut.length() == 8) {
-                    // RUT completo con formato
-                    asistencias = asRepo.findAllByEmpleadoRutAndFechaBetween(rut, desde, hasta);
-                } else {
-                    // RUT parcial
-                    asistencias = asRepo.findAllByRutParcialFlexibleAndFechaBetween(rut, desde, hasta);
-                }
-            } else {
-                // Sin RUT
-                asistencias = asRepo.findAllByFechaHoraBetween(desde, hasta);
-            }
-            
-            return asistencias;
-        } catch (Exception e) {
-            logger.error("Error al asegurar datos para fechas", e);
-            return new ArrayList<>();
-        }
-    }
 
     /**
      * Obtiene las marcas originales (sin procesar) para un empleado y rango de fechas.
      * Útil para la pantalla de edición.
      *
-     * @param rut RUT del empleado
+     * @param rut         RUT del empleado
      * @param fechaInicio Fecha inicio (formato: yyyy-MM-dd)
-     * @param fechaFin Fecha fin (formato: yyyy-MM-dd)
+     * @param fechaFin    Fecha fin (formato: yyyy-MM-dd)
      * @return Lista de marcas de asistencia
      */
     @Operation(summary = "Obtener marcas por empleado y rango de fechas",
-               description = "Obtiene las marcas originales para un empleado en un rango de fechas")
+            description = "Obtiene las marcas originales para un empleado en un rango de fechas")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Marcas obtenidas exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Parámetros inválidos")
+            @ApiResponse(responseCode = "200", description = "Marcas obtenidas exitosamente"),
+            @ApiResponse(responseCode = "400", description = "Parámetros inválidos")
     })
     @GetMapping("/marcas/empleado")
     public ResponseEntity<?> getMarcasPorEmpleadoYFechas(
             @RequestParam String rut,
             @RequestParam LocalDate fechaInicio,
-            @RequestParam(required = false) LocalDate fechaFin)
-    {
+            @RequestParam(required = false) LocalDate fechaFin) {
         try {
             logger.info("Obteniendo marcas para empleado RUT: {}, desde: {}, hasta: {}", rut, fechaInicio, fechaFin);
-            
+
             if (rut == null || rut.isEmpty()) {
                 return ResponseEntity.badRequest().body("El RUT del empleado es requerido");
             }
-            
+
             if (fechaInicio == null) {
                 return ResponseEntity.badRequest().body("La fecha de inicio es requerida");
             }
-            
+
             // Si no se proporciona fecha fin, usar fecha inicio + 2 días
             LocalDate fechaFinReal = (fechaFin != null) ? fechaFin : fechaInicio.plusDays(2);
-            
+
             // Convertir a LocalDateTime para el rango completo
             LocalDateTime desde = fechaInicio.atStartOfDay();
             LocalDateTime hasta = fechaFinReal.plusDays(1).atStartOfDay();
-            
+
             List<Asistencia> marcas;
-            
+
             // Buscar por RUT exacto o parcial
             if (rut.contains("-")) {
                 // RUT completo
@@ -363,13 +312,13 @@ public class AsistenciaController {
                 // RUT parcial
                 marcas = asRepo.findAllByRutParcialAndFechaBetween(rut, desde, hasta);
             }
-            
+
             // Ordenar marcas por fecha y hora
             marcas.sort((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()));
-            
+
             // Agrupar marcas por día
             Map<String, List<Asistencia>> marcasPorDia = new HashMap<>();
-            
+
             for (Asistencia marca : marcas) {
                 String fecha = marca.getFechaHora().toLocalDate().toString();
                 if (!marcasPorDia.containsKey(fecha)) {
@@ -377,7 +326,7 @@ public class AsistenciaController {
                 }
                 marcasPorDia.get(fecha).add(marca);
             }
-            
+
             // Crear respuesta
             Map<String, Object> respuesta = new HashMap<>();
             respuesta.put("empleadoRut", rut);
@@ -385,9 +334,9 @@ public class AsistenciaController {
             respuesta.put("fechaFin", fechaFinReal.toString());
             respuesta.put("marcasPorDia", marcasPorDia);
             respuesta.put("marcas", marcas);
-            
+
             return ResponseEntity.ok(respuesta);
-            
+
         } catch (Exception e) {
             logger.error("Error al obtener marcas por empleado y fechas", e);
             return ResponseEntity.badRequest().body("Error al obtener marcas: " + e.getMessage());

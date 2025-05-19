@@ -135,7 +135,10 @@ public class AsistenciaService implements IAsistenciaService {
 
         // Después de las 21:00 o antes de las 6:00 es 50%
         if (salida.isAfter(INICIO_HORARIO_50) || salida.isBefore(FIN_HORARIO_50)) {
-            return new MinutosExtras(0, Math.max(0, totalMinutosExtra));
+            long minutos25 = Duration.between(salidaEsperada, INICIO_HORARIO_50).toMinutes();
+            long minutos50 = Duration.between(INICIO_HORARIO_50, salida).toMinutes();
+
+            return new MinutosExtras(minutos25, minutos50);
         } else {
             return new MinutosExtras(Math.max(0, totalMinutosExtra), 0);
         }
