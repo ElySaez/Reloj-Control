@@ -26,6 +26,10 @@ export default function Resumen() {
     const [salidaManual, setSalidaManual] = useState('17:00')
     const [guardandoMarcas, setGuardandoMarcas] = useState(false)
     
+    // Estado para controlar la carga de marcas individuales
+    const [guardandoEntrada, setGuardandoEntrada] = useState(false);
+    const [guardandoSalida, setGuardandoSalida] = useState(false);
+
     // Eliminar estados para filtro por mes y año
     // const mesActual = new Date().getMonth() + 1;
     // const añoActual = new Date().getFullYear();
@@ -248,7 +252,42 @@ export default function Resumen() {
     // Función para abrir el modal y cargar las marcas del día
     const handleOpenModal = async (registro) => {
         try {
-            // Guardar el registro seleccionado
+            // Depurar el registro para ver todas sus propiedades
+            console.log('Registro seleccionado:', registro);
+            console.log('Propiedades del registro:', Object.keys(registro));
+            
+            // Buscar propiedades que podrían contener el ID
+            console.log('Posible ID empleado:', {
+                idEmpleado: registro.idEmpleado,
+                empleadoId: registro.empleadoId,
+                id: registro.id,
+                idAsistencia: registro.idAsistencia,
+                idMarca: registro.idMarca,
+                rut: registro.rut
+            });
+            
+            // Asegurarnos de tener el ID del empleado
+            const idEmpleado = registro.idEmpleado || 
+                              registro.empleadoId || 
+                              null;
+            
+            // Si no hay ID, pero tenemos RUT, podríamos buscar el empleado por RUT
+            if (!idEmpleado && registro.rut) {
+                console.log('No se encontró ID de empleado directamente, usando RUT:', registro.rut);
+                
+                // Intentar extraer números del RUT para usarlo como identificador
+                const rutSoloNumeros = registro.rut.replace(/\D/g, '');
+                
+                // Enriquecer el objeto registro con el ID del empleado
+                registro.idEmpleadoCalculado = registro.idEmpleado || 
+                                              registro.empleadoId || 
+                                              Number(rutSoloNumeros) || // Usar el RUT numérico como ID temporal
+                                              null;
+                
+                console.log('ID empleado calculado:', registro.idEmpleadoCalculado);
+            }
+            
+            // Guardar el registro seleccionado (posiblemente enriquecido)
             setRegistroSeleccionado(registro);
             
             // Obtener fecha en formato YYYY-MM-DD
@@ -366,63 +405,125 @@ export default function Resumen() {
         }
     };
 
-    // Función para guardar los cambios de marcas
+    // Función para guardar solo la marca de entrada
+    const handleGuardarEntrada = async () => {
+        try {
+            setGuardandoEntrada(true);
+            
+            // Verificar si tenemos el empleado ID
+            if (!registroSeleccionado) {
+                throw new Error('No se pudo identificar al empleado');
+            }
+            
+            // Verificar todas las posibles propiedades que contengan el ID del empleado
+            const empleadoId = registroSeleccionado.empleadoId || 
+                              registroSeleccionado.idEmpleado || 
+                              registroSeleccionado.idEmpleadoCalculado ||
+                              registroSeleccionado.id || 
+                              null;
+                              
+            if (!empleadoId) {
+                // Si no hay ID empleado, intentar depurar qué hay en el objeto
+                console.error('Propiedades disponibles en registroSeleccionado:', Object.keys(registroSeleccionado));
+                throw new Error('No se encontró el ID del empleado en el registro seleccionado');
+            }
+            
+            console.log('Usando empleadoId:', empleadoId);
+            
+            if (tabActivo === 'edicionManual') {
+                // Guardar la entrada manual
+                if (entradaManual) {
+                    // Formatear la fecha según requerido por el backend
+                    const fechaHoraEntrada = formatearFechaCompleta(entradaManual);
+                    console.log(`Registrando entrada manual: ${fechaHoraEntrada} para empleado ID: ${empleadoId}`);
+                    await marcarAsistencia(empleadoId, 'ENTRADA', fechaHoraEntrada);
+                }
+            } else if (marcaEntradaSeleccionada) {
+                // Actualizar estado a AUTORIZADO de la marca seleccionada
+                if (marcaEntradaSeleccionada.id) {
+                    console.log(`Autorizando marca de entrada: ${marcaEntradaSeleccionada.id}`);
+                    await actualizarEstadoAsistencia(marcaEntradaSeleccionada.id, 'AUTORIZADO');
+                }
+            }
+            
+            // Refrescar datos después de guardar
+            await fetchData();
+            
+            // Mostrar mensaje de éxito
+            setError('');
+        } catch (error) {
+            console.error('Error al guardar marca de entrada:', error);
+            setError('Error al guardar la marca de entrada: ' + error.message);
+        } finally {
+            setGuardandoEntrada(false);
+        }
+    };
+    
+    // Función para guardar solo la marca de salida
+    const handleGuardarSalida = async () => {
+        try {
+            setGuardandoSalida(true);
+            
+            // Verificar si tenemos el empleado ID
+            if (!registroSeleccionado) {
+                throw new Error('No se pudo identificar al empleado');
+            }
+            
+            // Verificar todas las posibles propiedades que contengan el ID del empleado
+            const empleadoId = registroSeleccionado.empleadoId || 
+                              registroSeleccionado.idEmpleado || 
+                              registroSeleccionado.idEmpleadoCalculado ||
+                              registroSeleccionado.id || 
+                              null;
+                              
+            if (!empleadoId) {
+                // Si no hay ID empleado, intentar depurar qué hay en el objeto
+                console.error('Propiedades disponibles en registroSeleccionado:', Object.keys(registroSeleccionado));
+                throw new Error('No se encontró el ID del empleado en el registro seleccionado');
+            }
+            
+            console.log('Usando empleadoId:', empleadoId);
+            
+            if (tabActivo === 'edicionManual') {
+                // Guardar la salida manual
+                if (salidaManual) {
+                    // Formatear la fecha según requerido por el backend
+                    const fechaHoraSalida = formatearFechaCompleta(salidaManual);
+                    console.log(`Registrando salida manual: ${fechaHoraSalida} para empleado ID: ${empleadoId}`);
+                    await marcarAsistencia(empleadoId, 'SALIDA', fechaHoraSalida);
+                }
+            } else if (marcaSalidaSeleccionada) {
+                // Actualizar estado a AUTORIZADO de la marca seleccionada
+                if (marcaSalidaSeleccionada.id) {
+                    console.log(`Autorizando marca de salida: ${marcaSalidaSeleccionada.id}`);
+                    await actualizarEstadoAsistencia(marcaSalidaSeleccionada.id, 'AUTORIZADO');
+                }
+            }
+            
+            // Refrescar datos después de guardar
+            await fetchData();
+            
+            // Mostrar mensaje de éxito
+            setError('');
+        } catch (error) {
+            console.error('Error al guardar marca de salida:', error);
+            setError('Error al guardar la marca de salida: ' + error.message);
+        } finally {
+            setGuardandoSalida(false);
+        }
+    };
+    
+    // Función para guardar ambas marcas (mantener para compatibilidad)
     const handleGuardarMarcas = async () => {
         try {
             setGuardandoMarcas(true);
             
-            // Verificar si tenemos el empleado ID
-            if (!registroSeleccionado || !registroSeleccionado.rut) {
-                throw new Error('No se pudo identificar al empleado');
-            }
+            // Ejecutar ambas funciones
+            await handleGuardarEntrada();
+            await handleGuardarSalida();
             
-            // Obtener fecha en formato YYYY-MM-DD
-            const partesFecha = registroSeleccionado.fecha.split('/');
-            const fechaFormateada = `${partesFecha[2]}-${partesFecha[1].padStart(2, '0')}-${partesFecha[0].padStart(2, '0')}`;
-            
-            // Registrar marca de entrada si se seleccionó manual
-            if (tabActivo === 'edicionManual') {
-                // Obtener el ID del empleado
-                const empleadoId = registroSeleccionado.empleadoId || 1; // ID por defecto si no existe
-                
-                // Crear una marca de entrada con la fecha y hora específicas
-                if (entradaManual) {
-                    // Formatear la fecha según requerido por el backend
-                    const fechaHoraEntrada = formatearFechaCompleta(entradaManual);
-                    console.log(`Registrando entrada manual: ${fechaHoraEntrada}`);
-                    await marcarAsistencia(empleadoId, 'ENTRADA', fechaHoraEntrada);
-                }
-                
-                // También registrar la salida si está disponible
-                if (salidaManual) {
-                    // Formatear la fecha según requerido por el backend
-                    const fechaHoraSalida = formatearFechaCompleta(salidaManual);
-                    console.log(`Registrando salida manual: ${fechaHoraSalida}`);
-                    await marcarAsistencia(empleadoId, 'SALIDA', fechaHoraSalida);
-                }
-            } else {
-                // Usar las marcas existentes seleccionadas
-                if (marcaEntradaSeleccionada) {
-                    // Actualizar estado a AUTORIZADO de la marca seleccionada
-                    if (marcaEntradaSeleccionada.id) {
-                        console.log(`Autorizando marca de entrada: ${marcaEntradaSeleccionada.id}`);
-                        await actualizarEstadoAsistencia(marcaEntradaSeleccionada.id, 'AUTORIZADO');
-                    }
-                }
-                
-                if (marcaSalidaSeleccionada) {
-                    // Actualizar estado a AUTORIZADO de la marca seleccionada
-                    if (marcaSalidaSeleccionada.id) {
-                        console.log(`Autorizando marca de salida: ${marcaSalidaSeleccionada.id}`);
-                        await actualizarEstadoAsistencia(marcaSalidaSeleccionada.id, 'AUTORIZADO');
-                    }
-                }
-            }
-            
-            // Cerrar modal y refrescar datos
+            // Cerrar modal después de guardar
             setShowModal(false);
-            await fetchData();
-            
         } catch (error) {
             console.error('Error al guardar marcas:', error);
             setError('Error al guardar las marcas: ' + error.message);
@@ -817,8 +918,8 @@ export default function Resumen() {
                             </div>
                             <div className="modal-body">
                                 {/* Sección de marca de entrada */}
-                                <div className="mb-4">
-                                    <h6>Marca de Entrada</h6>
+                                <div className="mb-4 border rounded p-3">
+                                    <h6 className="mb-3">Marca de Entrada</h6>
                                     <ul className="nav nav-tabs">
                                         <li className="nav-item">
                                             <button 
@@ -872,11 +973,26 @@ export default function Resumen() {
                                             </div>
                                         )}
                                     </div>
+                                    <div className="d-flex justify-content-end mt-3">
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-primary"
+                                            onClick={handleGuardarEntrada}
+                                            disabled={guardandoEntrada}
+                                        >
+                                            {guardandoEntrada ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                    Guardando...
+                                                </>
+                                            ) : 'Guardar Entrada'}
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 {/* Sección de marca de salida */}
-                                <div className="mb-4">
-                                    <h6>Marca de Salida</h6>
+                                <div className="mb-4 border rounded p-3">
+                                    <h6 className="mb-3">Marca de Salida</h6>
                                     <ul className="nav nav-tabs">
                                         <li className="nav-item">
                                             <button 
@@ -930,6 +1046,21 @@ export default function Resumen() {
                                             </div>
                                         )}
                                     </div>
+                                    <div className="d-flex justify-content-end mt-3">
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-primary"
+                                            onClick={handleGuardarSalida}
+                                            disabled={guardandoSalida}
+                                        >
+                                            {guardandoSalida ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                    Guardando...
+                                                </>
+                                            ) : 'Guardar Salida'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div className="modal-footer">
@@ -938,20 +1069,7 @@ export default function Resumen() {
                                     className="btn btn-secondary"
                                     onClick={handleCloseModal}
                                 >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="button" 
-                                    className="btn btn-primary"
-                                    onClick={handleGuardarMarcas}
-                                    disabled={guardandoMarcas}
-                                >
-                                    {guardandoMarcas ? (
-                                        <>
-                                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                            Guardando...
-                                        </>
-                                    ) : 'Guardar Cambios'}
+                                    Cerrar
                                 </button>
                             </div>
                         </div>
