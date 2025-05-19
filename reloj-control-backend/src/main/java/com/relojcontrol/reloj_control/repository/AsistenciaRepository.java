@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
     // busca todas las marcas entre dos instantes
@@ -57,4 +58,19 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
         @Param("desde") LocalDateTime desde,
         @Param("hasta") LocalDateTime hasta
     );
+
+    @Query("SELECT EXISTS(SELECT 1 FROM Asistencia a WHERE a.empleado.idEmpleado = :idEmpleado AND DATE(a.fechaHora) = :fecha AND a.tipo = :tipo AND a.esOficial = true)")
+    boolean existsAsistenciaOficialEnFecha(
+            @Param("idEmpleado") Long idEmpleado,
+            @Param("fecha") LocalDate fecha,
+            @Param("tipo") String tipo
+    );
+
+    @Query("SELECT a FROM Asistencia a WHERE a.empleado.idEmpleado = :idEmpleado AND DATE(a.fechaHora) = :fecha AND a.tipo = :tipo AND a.esOficial = true")
+    Optional<Asistencia> findAsistenciaOficialEnFecha(
+            @Param("idEmpleado") Long idEmpleado,
+            @Param("fecha") LocalDate fecha,
+            @Param("tipo") String tipo
+    );
+
 }

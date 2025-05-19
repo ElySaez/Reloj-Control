@@ -24,6 +24,9 @@ public class Asistencia {
     @Column
     private String estado = "AUTORIZADO"; // "AUTORIZADO", "RECHAZADO", "PENDIENTE"
 
+    @Column(name = "es_oficial")
+    private Boolean esOficial;
+
     // Constructor por defecto (requerido por JPA)
     public Asistencia() {}
 
@@ -37,7 +40,24 @@ public class Asistencia {
         this.empleado = empleado;
         this.fechaHora   = fechaHora;
         this.tipo        = tipo;
-        this.estado      = "AUTORIZADO"; // Por defecto AUTORIZADO
+        this.estado      = "AUTORIZADO";// Por defecto AUTORIZADO
+        this.esOficial = false;
+    }
+
+    public Asistencia(Empleado empleado, LocalDateTime fechaHora, String tipo, Boolean esOficial) {
+        this.empleado = empleado;
+        this.fechaHora = fechaHora;
+        this.tipo = tipo;
+        this.estado      = "AUTORIZADO";
+        this.esOficial = esOficial;
+    }
+
+    public Boolean getEsOficial() {
+        return esOficial;
+    }
+
+    public void setEsOficial(Boolean esOficial) {
+        this.esOficial = esOficial;
     }
 
     // Getters y setters

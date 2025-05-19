@@ -4,7 +4,7 @@ import com.relojcontrol.reloj_control.dto.ResumenAsistenciaDTO;
 import com.relojcontrol.reloj_control.model.Asistencia;
 import com.relojcontrol.reloj_control.model.Empleado;
 import com.relojcontrol.reloj_control.repository.AsistenciaRepository;
-import org.springframework.cglib.core.Local;
+import com.relojcontrol.reloj_control.repository.EmpleadoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,8 +15,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Set;
 
 /**
  * Servicio para gestionar las asistencias de los empleados.
@@ -35,13 +35,16 @@ public class AsistenciaService implements IAsistenciaService {
     private final AsistenciaRepository repo;
     private final ParametroSistemaService paramSvc;
     private final FeriadoService feriadoSvc;
+    private final EmpleadoRepository empleadoRepository;
 
     public AsistenciaService(AsistenciaRepository repo,
                              ParametroSistemaService paramSvc,
-                             FeriadoService feriadoSvc) {
+                             FeriadoService feriadoSvc,
+                             EmpleadoRepository empleadoRepository) {
         this.repo = repo;
         this.paramSvc = paramSvc;
         this.feriadoSvc = feriadoSvc;
+        this.empleadoRepository = empleadoRepository;
     }
 
     /**
@@ -80,6 +83,22 @@ public class AsistenciaService implements IAsistenciaService {
         return horaEntrada
                 .plusMinutes(minutosJornada)
                 .plusMinutes(minutosTol);
+    }
+
+    @Override
+    public Asistencia crearAsistencia(String empleadoId, String tipo, LocalDateTime fecha, boolean esOficial) {
+        Empleado emp = empleadoRepository.findByRut(empleadoId)
+                .orElseThrow(() -> new IllegalArgumentException("Empleado no encontrado"));
+        if(repo.existsAsistenciaOficialEnFecha(emp.getIdEmpleado(), fecha.toLocalDate(), tipo)){
+            repo.findAsistenciaOficialEnFecha(emp.getIdEmpleado(), fecha.toLocalDate(), tipo)
+                    .ifPresent(marca -> {
+                        marca.setEsOficial(false);
+                        repo.save(marca);
+                    });
+        }
+        Asistencia asistencia = new Asistencia(emp, fecha, tipo, esOficial);
+
+        return repo.save(asistencia);
     }
 
     /**
@@ -129,7 +148,7 @@ public class AsistenciaService implements IAsistenciaService {
      * @return Lista de resúmenes de asistencia
      */
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = false)
     public List<ResumenAsistenciaDTO> resumenPorDia(LocalDate dia) {
         List<Asistencia> asistencias = repo.findAllByFecha(dia);
         return procesarMarcasAsistencia(asistencias);
@@ -138,7 +157,7 @@ public class AsistenciaService implements IAsistenciaService {
     /**
      * Devuelve el resumen de asistencia de un empleado por RUT para un día específico
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = false)
     public List<ResumenAsistenciaDTO> resumenPorRutYDia(String rut, LocalDate dia) {
         LocalDateTime desde = dia.atStartOfDay();
         LocalDateTime hasta = dia.plusDays(1).atStartOfDay();
@@ -150,7 +169,7 @@ public class AsistenciaService implements IAsistenciaService {
     /**
      * Devuelve el resumen de asistencia de un empleado por RUT para un rango de fechas
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = false)
     public List<ResumenAsistenciaDTO> resumenPorRutYRangoFechas(String rut, LocalDate fechaInicio, LocalDate fechaFin) {
         LocalDateTime desde = fechaInicio.atStartOfDay();
         LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
@@ -211,20 +230,29 @@ public class AsistenciaService implements IAsistenciaService {
                     // Obtener datos del empleado (usando la primera marca como referencia)
                     String nombreEmpleado = marcasDelDia.get(0).getEmpleado().getNombreCompleto();
                     String rutEmpleado = marcasDelDia.get(0).getEmpleado().getRut();
+                    Long idEmpleado = marcasDelDia.get(0).getEmpleado().getIdEmpleado();
+                    Asistencia entrada = null;
+                    Asistencia salida = null;
+                    if(repo.existsAsistenciaOficialEnFecha(idEmpleado, fecha,"ENTRADA")){
+                        entrada = repo.findAsistenciaOficialEnFecha(idEmpleado, fecha, "ENTRADA").get();
+                    } else {
+                        List<Asistencia> entradas = marcasDelDia.stream()
+                                .filter(a -> "ENTRADA".equals(a.getTipo()))
+                                .sorted((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
+                                .toList();
+                        entrada = getAsistenciaFromList(entradas);
+                    }
 
-                    // Obtener todas las entradas y salidas para esta fecha y este empleado
-                    List<Asistencia> entradas = marcasDelDia.stream()
-                            .filter(a -> "ENTRADA".equals(a.getTipo()))
-                            .sorted((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
-                            .toList();
+                    if(repo.existsAsistenciaOficialEnFecha(idEmpleado, fecha,"SALIDA")){
+                        salida = repo.findAsistenciaOficialEnFecha(idEmpleado, fecha, "SALIDA").get();
+                    } else {
+                        List<Asistencia> entradas = marcasDelDia.stream()
+                                .filter(a -> "SALIDA".equals(a.getTipo()))
+                                .sorted((a, b) -> a.getFechaHora().compareTo(b.getFechaHora()))
+                                .toList();
+                        salida = getAsistenciaFromList(entradas);
+                    }
 
-                    List<Asistencia> salidas = marcasDelDia.stream()
-                            .filter(a -> "SALIDA".equals(a.getTipo()))
-                            .sorted((a, b) -> b.getFechaHora().compareTo(a.getFechaHora()))
-                            .toList();
-
-                    Asistencia entrada = getAsistenciaFromList(entradas);
-                    Asistencia salida = getAsistenciaFromList(salidas);
 
                     // Verificar si es un día especial (feriado o fin de semana)
                     boolean esDiaEspecial = feriadoSvc.esFinDeSemanaOFeriado(fecha);
@@ -329,7 +357,7 @@ public class AsistenciaService implements IAsistenciaService {
     /**
      * Devuelve el resumen de asistencia filtrando por RUT parcial para un rango de fechas
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = false)
     public List<ResumenAsistenciaDTO> resumenPorRutParcialYRangoFechas(String rutParcial, LocalDate fechaInicio, LocalDate fechaFin) {
         LocalDateTime desde = fechaInicio.atStartOfDay();
         LocalDateTime hasta = fechaFin.plusDays(1).atStartOfDay();
@@ -385,6 +413,25 @@ public class AsistenciaService implements IAsistenciaService {
         return true;
     }
 
+    /**
+     * Actualiza el campo es oficial de una asistencia.
+     *
+     * @param id     ID de la asistencia
+     * @param esOficial
+     * @return true si se actualizó correctamente, false si no se encontró la asistencia
+     */
+    @Transactional
+    public Asistencia actualizarEsOficialDeUnaAsistencia(Long id, Boolean esOficial) {
+        Optional<Asistencia> asistenciaOpt = repo.findById(id);
+
+        if(asistenciaOpt.isEmpty()){
+            return null;
+        }
+        Asistencia asistencia = asistenciaOpt.get();
+        asistencia.setEsOficial(esOficial);
+        return repo.save(asistencia);
+    }
+
     private String getFormattedTimeDateString(LocalTime hora){
         if(hora.getSecond() == 0){
             return hora.toString() + ":00";
@@ -396,6 +443,8 @@ public class AsistenciaService implements IAsistenciaService {
         if (asistencias.isEmpty()){
             return null;
         }
-        return asistencias.get(0);
+        Asistencia asistencia = asistencias.get(0);
+
+        return actualizarEsOficialDeUnaAsistencia(asistencia.getId(), true);
     }
 }

@@ -71,10 +71,8 @@ public class AsistenciaController {
             @Parameter(description = "Tipo de marca (ENTRADA o SALIDA)") @RequestParam String tipo,
             @Parameter(description = "Hora de marca") @RequestParam String fecha) {
         try {
-            Empleado emp = eRepo.findByRut(empleadoId)
-                    .orElseThrow(() -> new IllegalArgumentException("Empleado no encontrado"));
-            Asistencia a = new Asistencia(emp, LocalDateTime.parse(fecha), tipo);
-            return ResponseEntity.ok(asRepo.save(a));
+            Asistencia asistencia = asistenciaService.crearAsistencia(empleadoId, tipo, LocalDateTime.parse(fecha), true);
+            return ResponseEntity.ok(asistencia);
         } catch (Exception e) {
             logger.error("Error al marcar asistencia", e);
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
