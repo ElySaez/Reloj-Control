@@ -1,8 +1,10 @@
 package com.relojcontrol.reloj_control.dto;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.time.LocalDate;
 
-public class CrearJustificacionDto {
+public class CrearJustificacionDTO {
 
     private String rutEmpleado;
 
@@ -14,9 +16,10 @@ public class CrearJustificacionDto {
 
     private String motivo;
 
-    private String estado;
+    private MultipartFile archivo; // El PDF
 
-    public CrearJustificacionDto() {
+
+    public CrearJustificacionDTO() {
     }
 
     public String getRutEmpleado() {
@@ -59,11 +62,11 @@ public class CrearJustificacionDto {
         this.motivo = motivo;
     }
 
-    public String getEstado() {
-        return estado;
+    public MultipartFile getArchivo() {
+        return archivo;
     }
 
-    public void setEstado(String estado) {
-        this.estado = estado;
+    public void setArchivo(MultipartFile archivo) {
+        this.archivo = archivo;
     }
 }

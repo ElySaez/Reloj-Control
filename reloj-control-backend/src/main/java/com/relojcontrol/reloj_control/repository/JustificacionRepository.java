@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface JustificacionRepository extends JpaRepository<Justificacion,Integer> {
     List<Justificacion> findAllByEmpleadoRut(String rutEmpleado);
+
+    Justificacion findByIdJustificacion(Long id);
 }

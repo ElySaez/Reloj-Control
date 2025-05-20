@@ -1,6 +1,6 @@
 package com.relojcontrol.reloj_control.service;
 
-import com.relojcontrol.reloj_control.dto.CrearJustificacionDto;
+import com.relojcontrol.reloj_control.dto.CrearJustificacionDTO;
 import com.relojcontrol.reloj_control.model.Empleado;
 import com.relojcontrol.reloj_control.model.Justificacion;
 import com.relojcontrol.reloj_control.model.TipoPermiso;
@@ -9,10 +9,10 @@ import com.relojcontrol.reloj_control.repository.JustificacionRepository;
 import com.relojcontrol.reloj_control.repository.TipoPermisoRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class JustificacionService implements IJustificacionService{
@@ -33,7 +33,7 @@ public class JustificacionService implements IJustificacionService{
     }
 
     @Override
-    public Justificacion guardarJustificacion(CrearJustificacionDto crearJustificacionDto, MultipartFile archivo){
+    public Justificacion guardarJustificacion(CrearJustificacionDTO crearJustificacionDto){
         Empleado empleado = empleadoRepository.findByRut(crearJustificacionDto.getRutEmpleado())
                 .orElseThrow(() -> new EntityNotFoundException("Empleado no encontrado"));
 
@@ -47,12 +47,19 @@ public class JustificacionService implements IJustificacionService{
         justificacion.setFechaTermino(crearJustificacionDto.getFechaTermino());
         justificacion.setMotivo(crearJustificacionDto.getMotivo());
         try {
-            justificacion.setArchivoAdjunto(archivo.getBytes());
+            if(Objects.nonNull(crearJustificacionDto.getArchivo())){
+                justificacion.setArchivoAdjunto(crearJustificacionDto.getArchivo().getInputStream().readAllBytes());
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        justificacion.setEstado(crearJustificacionDto.getEstado());
+        justificacion.setEstado("Pendiente");
 
         return justificacionRepository.save(justificacion);
+    }
+
+    @Override
+    public Justificacion getById(Long id) {
+        return justificacionRepository.findByIdJustificacion(id);
     }
 }

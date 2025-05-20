@@ -1,6 +1,9 @@
 package com.relojcontrol.reloj_control.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDate;
 
 @Entity
@@ -10,7 +13,7 @@ public class Justificacion {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_justificacion")
-    private Integer idJustificacion;
+    private Long idJustificacion;
 
     @ManyToOne
     @JoinColumn(name = "id_empleado", nullable = false)
@@ -28,7 +31,9 @@ public class Justificacion {
 
     @Column(columnDefinition = "text")
     private String motivo;
+
     @Lob
+    @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "archivo_adjunto", columnDefinition = "BYTEA")
     private byte[] archivoAdjunto;
 
@@ -39,7 +44,7 @@ public class Justificacion {
     }
 
     // Getters y setters...
-    public Integer getIdJustificacion() { return idJustificacion; }
+    public Long getIdJustificacion() { return idJustificacion; }
     public Empleado getEmpleado() { return empleado; }
     public void setEmpleado(Empleado e) { this.empleado = e; }
     public TipoPermiso getTipoPermiso() { return tipoPermiso; }
