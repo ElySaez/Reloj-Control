@@ -1,20 +1,11 @@
-#########################################################################
-# render.yaml  ·  Sistema Reloj-Control (ANTU)
-# Infraestructura como código para Render.com
-#########################################################################
+# render.yaml – Sistema Reloj-Control (ANTU)
 
-# ─────────────────────────────────────
-# 1. Base de datos (PostgreSQL)
-# ─────────────────────────────────────
 databases:
-  - name: reloj-control-db        # Identificador interno en Render
-    databaseName: relojcontroldb  # Nombre lógico dentro de PostgreSQL
+  - name: reloj-control-db
+    databaseName: relojcontroldb
     user: relojcontrol
-    plan: free                    # Starter/Standard si necesitas más capacidad
+    plan: free
 
-# ─────────────────────────────────────
-# 2. Grupo de variables de entorno
-# ─────────────────────────────────────
 envVarGroups:
   - name: reloj-control-common
     envVars:
@@ -23,22 +14,16 @@ envVarGroups:
       - key: JAVA_TOOL_OPTIONS
         value: "-XX:+UseG1GC"
 
-# ─────────────────────────────────────
-# 3. Servicios
-# ─────────────────────────────────────
 services:
-
-  # 3.1 BACKEND · Spring Boot 3 + Maven
   - type: web
     name: reloj-control-backend
-    branch: developer                  # Rama que vas a desplegar
-    rootDir: reloj-control-backend     # Subcarpeta del proyecto
-    runtime: java                      # Runtime nativo de Render
+    branch: developer
+    rootDir: reloj-control-backend
+    runtime: docker
     plan: free
-    buildCommand: ./mvnw -B test package
-    startCommand: java -jar target/*SNAPSHOT.jar
+    dockerfilePath: reloj-control-backend/Dockerfile
     envVars:
-      - fromGroup: reloj-control-common   # ⬅ Referencia al grupo
+      - fromGroup: reloj-control-common
       - key: SPRING_DATASOURCE_URL
         fromDatabase:
           name: reloj-control-db
@@ -54,21 +39,19 @@ services:
     healthCheckPath: /actuator/health
     autoDeploy: true
 
-  # 3.2 FRONTEND · React 18 + Vite
   - type: web
     name: reloj-control-frontend
     branch: developer
     rootDir: reloj-control-frontend
-    runtime: node
+    runtime: static
     plan: free
     buildCommand: |
       npm ci
-      npm run test -- --watchAll=false   # Abortará el build si un test falla
       npm run build
     staticPublishPath: dist
     envVars:
       - fromGroup: reloj-control-common
-    buildFilter:                         # Acelera builds en monorepo
+    buildFilter:
       paths:
         - "reloj-control-frontend/**"
     autoDeploy: true
