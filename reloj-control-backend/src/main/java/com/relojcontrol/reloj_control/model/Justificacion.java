@@ -28,12 +28,15 @@ public class Justificacion {
 
     @Column(columnDefinition = "text")
     private String motivo;
-
-    @Column(name = "archivo_adjunto")
-    private String archivoAdjunto;
+    @Lob
+    @Column(name = "archivo_adjunto", columnDefinition = "BYTEA")
+    private byte[] archivoAdjunto;
 
     @Column(nullable = false)
     private String estado;
+
+    public Justificacion() {
+    }
 
     // Getters y setters...
     public Integer getIdJustificacion() { return idJustificacion; }
@@ -47,8 +50,14 @@ public class Justificacion {
     public void setFechaTermino(LocalDate f) { this.fechaTermino = f; }
     public String getMotivo() { return motivo; }
     public void setMotivo(String m) { this.motivo = m; }
-    public String getArchivoAdjunto() { return archivoAdjunto; }
-    public void setArchivoAdjunto(String a) { this.archivoAdjunto = a; }
     public String getEstado() { return estado; }
     public void setEstado(String e) { this.estado = e; }
+
+    public byte[] getArchivoAdjunto() {
+        return archivoAdjunto;
+    }
+
+    public void setArchivoAdjunto(byte[] archivoAdjunto) {
+        this.archivoAdjunto = archivoAdjunto;
+    }
 }
