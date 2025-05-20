@@ -42,32 +42,4 @@ public class JustificacionController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=justificacion-" + id + ".pdf")
                 .body(justificacion.getArchivoAdjunto());
     }
-
-//    @GetMapping("/{id}")
-//    public ResponseEntity<Justificacion> uno(@PathVariable Integer id) {A
-//        return repo.findById(id)
-//                .map(ResponseEntity::ok)
-//                .orElse(ResponseEntity.notFound().build());
-//    }
-//
-//    @PutMapping("/{id}")
-//    public ResponseEntity<Justificacion> actualizar(@PathVariable Integer id,
-//                                                    @RequestBody Justificacion cambios) {
-//        return repo.findById(id).map(j -> {
-//            j.setEmpleado(cambios.getEmpleado());
-//            j.setTipoPermiso(cambios.getTipoPermiso());
-//            j.setFechaInicio(cambios.getFechaInicio());
-//            j.setFechaTermino(cambios.getFechaTermino());
-//            j.setMotivo(cambios.getMotivo());
-//            j.setArchivoAdjunto(cambios.getArchivoAdjunto());
-//            j.setEstado(cambios.getEstado());
-//            return ResponseEntity.ok(repo.save(j));
-//        }).orElse(ResponseEntity.notFound().build());
-//    }
-//
-//    @DeleteMapping("/{id}")
-//    public ResponseEntity<Void> borrar(@PathVariable Integer id) {
-//        repo.deleteById(id);
-//        return ResponseEntity.noContent().build();
-//    }
 }
