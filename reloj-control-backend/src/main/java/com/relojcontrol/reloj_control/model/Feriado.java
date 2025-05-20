@@ -27,6 +27,13 @@ public class Feriado {
         this.descripcion = descripcion;
     }
 
+    public Feriado(Long id, LocalDate fecha, String descripcion, boolean activo) {
+        this.id = id;
+        this.fecha = fecha;
+        this.descripcion = descripcion;
+        this.activo = activo;
+    }
+
     // Getters y Setters
     public Long getId() {
         return id;
