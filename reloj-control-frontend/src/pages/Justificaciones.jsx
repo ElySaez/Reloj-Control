@@ -1,48 +1,69 @@
 import { useState } from 'react'
+import { crearJustificacion } from '../api' // Asumiendo que la función estará en api/index.js
 
 export default function Justificaciones() {
     const [formData, setFormData] = useState({
-        empleadoId: '',
+        rutEmpleado: '',
         tipoPermiso: '',
         fechaInicio: '',
         fechaTermino: '',
         motivo: ''
     })
+    const [archivo, setArchivo] = useState(null)
     const [mensaje, setMensaje] = useState('')
+    const [loading, setLoading] = useState(false)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        
-        try {
-            const res = await fetch('/api/justificaciones', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            })
+        setLoading(true)
+        setMensaje('')
 
-            if (!res.ok) throw new Error('Error al enviar justificación')
+        const justificacionData = { ...formData };
+
+        try {
+            const data = new FormData();
+            
+            data.append('rutEmpleado', justificacionData.rutEmpleado);
+            data.append('tipoPermiso', justificacionData.tipoPermiso);
+            data.append('fechaInicio', justificacionData.fechaInicio);
+            data.append('fechaTermino', justificacionData.fechaTermino);
+            data.append('motivo', justificacionData.motivo);
+            
+            if (archivo) {
+                data.append('archivo', archivo);
+            }
+
+            await crearJustificacion(data); 
             
             setMensaje('Justificación enviada correctamente')
             setFormData({
-                empleadoId: '',
+                rutEmpleado: '',
                 tipoPermiso: '',
                 fechaInicio: '',
                 fechaTermino: '',
                 motivo: ''
             })
+            setArchivo(null)
+            if (document.getElementById('archivo-input')) {
+                document.getElementById('archivo-input').value = '';
+            }
         } catch (error) {
-            setMensaje('Error: ' + error.message)
+            setMensaje('Error: ' + (error.response?.data?.message || error.message || 'Error al enviar justificación'))
+        } finally {
+            setLoading(false)
         }
     }
 
     const handleChange = (e) => {
-        const { name, value } = e.target
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }))
+        const { name, value, files } = e.target
+        if (name === "archivo") {
+            setArchivo(files[0])
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [name]: value
+            }))
+        }
     }
 
     return (
@@ -51,86 +72,113 @@ export default function Justificaciones() {
             
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                        ID de Empleado
+                    <label htmlFor="rutEmpleado" className="block text-gray-700 text-sm font-bold mb-2">
+                        RUT de Empleado
                     </label>
                     <input
-                        type="number"
-                        name="empleadoId"
-                        value={formData.empleadoId}
+                        id="rutEmpleado"
+                        type="text"
+                        name="rutEmpleado"
+                        value={formData.rutEmpleado}
                         onChange={handleChange}
                         className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                         required
+                        disabled={loading}
+                        placeholder="Ej: 12345678-9"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                    <label htmlFor="tipoPermiso" className="block text-gray-700 text-sm font-bold mb-2">
                         Tipo de Permiso
                     </label>
                     <select
+                        id="tipoPermiso"
                         name="tipoPermiso"
                         value={formData.tipoPermiso}
                         onChange={handleChange}
                         className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                         required
+                        disabled={loading}
                     >
                         <option value="">Selecciona un tipo</option>
-                        <option value="MEDICO">Médico</option>
-                        <option value="PERSONAL">Personal</option>
-                        <option value="VACACIONES">Vacaciones</option>
+                        <option value="Licencia Medica">Licencia Medica</option>
+                        <option value="Feriado Legal">Feriado Legal</option>
+                        <option value="Permiso Administrativo">Permiso Administrativo</option>
+                        {/* Considerar cargar tipos desde el backend si son dinámicos en el futuro */}
                     </select>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">
+                        <label htmlFor="fechaInicio" className="block text-gray-700 text-sm font-bold mb-2">
                             Fecha Inicio
                         </label>
                         <input
+                            id="fechaInicio"
                             type="date"
                             name="fechaInicio"
                             value={formData.fechaInicio}
                             onChange={handleChange}
                             className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                             required
+                            disabled={loading}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">
+                        <label htmlFor="fechaTermino" className="block text-gray-700 text-sm font-bold mb-2">
                             Fecha Término
                         </label>
                         <input
+                            id="fechaTermino"
                             type="date"
                             name="fechaTermino"
                             value={formData.fechaTermino}
                             onChange={handleChange}
                             className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                             required
+                            disabled={loading}
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                    <label htmlFor="motivo" className="block text-gray-700 text-sm font-bold mb-2">
                         Motivo
                     </label>
                     <textarea
+                        id="motivo"
                         name="motivo"
                         value={formData.motivo}
                         onChange={handleChange}
                         className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                         rows="4"
                         required
+                        disabled={loading}
                     ></textarea>
+                </div>
+
+                <div>
+                    <label htmlFor="archivo-input" className="block text-gray-700 text-sm font-bold mb-2">
+                        Adjuntar Archivo (Opcional)
+                    </label>
+                    <input
+                        id="archivo-input"
+                        type="file"
+                        name="archivo"
+                        onChange={handleChange}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        disabled={loading}
+                    />
                 </div>
 
                 <button
                     type="submit"
-                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:bg-blue-300"
+                    disabled={loading}
                 >
-                    Enviar Justificación
+                    {loading ? 'Enviando...' : 'Enviar Justificación'}
                 </button>
             </form>
 

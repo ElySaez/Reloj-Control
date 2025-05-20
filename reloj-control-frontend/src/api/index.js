@@ -414,4 +414,38 @@ export const getMarcasPorEmpleadoYFechas = async (rut, fechaInicio, fechaFin = n
         console.error('Error en getMarcasPorEmpleadoYFechas:', error);
         throw error;
     }
+};
+
+// Nueva función para crear una justificación
+export const crearJustificacion = async (formData) => {
+    try {
+        const response = await fetch(`${API_URL}/justificaciones`, { // Asumiendo que el endpoint es /api/justificaciones
+            method: 'POST',
+            body: formData, // FormData se envía directamente, el navegador establece el Content-Type
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null); // Intenta parsear JSON, si falla, usa texto
+            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
+            const error = new Error(errorMessage);
+            error.response = {
+                status: response.status,
+                data: errorData || { message: errorMessage }, // Asegurar que error.response.data exista
+            };
+            throw error;
+        }
+
+        // Si la respuesta es 201 Created (o 200 OK) y tiene cuerpo JSON, lo devuelve
+        // Si no hay cuerpo, o no es JSON, devuelve un objeto indicando éxito
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            return response.json(); 
+        }
+        return { success: true, message: 'Justificación creada exitosamente' };
+
+    } catch (error) {
+        console.error('Error en crearJustificacion:', error);
+        // Re-lanzar el error para que el componente lo maneje y muestre el mensaje
+        throw error; 
+    }
 }; 
