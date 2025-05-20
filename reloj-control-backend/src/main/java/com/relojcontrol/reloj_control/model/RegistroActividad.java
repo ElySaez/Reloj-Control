@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public class RegistroActividad {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_log")
     private Long idLog;
 

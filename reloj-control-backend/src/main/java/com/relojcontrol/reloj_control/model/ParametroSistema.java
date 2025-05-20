@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 @Table(name = "parametro_sistema")
 public class ParametroSistema {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_parametro")
     private Long idParametro;
 

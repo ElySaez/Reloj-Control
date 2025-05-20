@@ -6,12 +6,12 @@ import jakarta.persistence.*;
 @Table(name = "usuario")
 public class Usuario {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_usuario")
     private Integer idUsuario;
 
     @Column(nullable = false, unique = true)
-    private String correo;
+    private String run;
 
     @Column(name = "contrasena_hash", nullable = false)
     private String contrasenaHash;
@@ -23,8 +23,8 @@ public class Usuario {
     private String estadoCuenta;
 
     // Constructor que vamos a usar en seedData()
-    public Usuario(String correo, String contrasenaHash, String rol, String estadoCuenta) {
-        this.correo = correo;
+    public Usuario(String run, String contrasenaHash, String rol, String estadoCuenta) {
+        this.run = run;
         this.contrasenaHash = contrasenaHash;
         this.rol = rol;
         this.estadoCuenta = estadoCuenta;
@@ -35,8 +35,8 @@ public class Usuario {
 
     // Getters y setters
     public Integer getIdUsuario() { return idUsuario; }
-    public String getCorreo() { return correo; }
-    public void setCorreo(String correo) { this.correo = correo; }
+    public String getRun() { return run; }
+    public void setRun(String run) { this.run = run; }
     public String getContrasenaHash() { return contrasenaHash; }
     public void setContrasenaHash(String h) { this.contrasenaHash = h; }
     public String getRol() { return rol; }

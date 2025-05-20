@@ -73,4 +73,5 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
             @Param("tipo") String tipo
     );
 
+    boolean existsByEmpleadoIdEmpleadoAndFechaHora(Long idEmpleado, LocalDateTime fechaHora);
 }

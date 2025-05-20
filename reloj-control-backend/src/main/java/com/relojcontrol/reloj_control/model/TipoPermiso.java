@@ -7,7 +7,7 @@ import jakarta.persistence.*;
 public class TipoPermiso {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_permiso")
     private Integer idPermiso;
 

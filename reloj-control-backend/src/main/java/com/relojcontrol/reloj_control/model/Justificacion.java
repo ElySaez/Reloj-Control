@@ -8,7 +8,7 @@ import java.time.LocalDate;
 public class Justificacion {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id_justificacion")
     private Integer idJustificacion;
 
