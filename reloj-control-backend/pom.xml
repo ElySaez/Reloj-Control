@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.relojcontrol</groupId>
 	<artifactId>reloj-control</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>reloj-control</name>
 	<description>Sistema de gestión de marcaciones de asistencia</description>
 	<url/>
