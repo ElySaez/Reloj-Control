@@ -574,9 +574,9 @@ export default function Resumen() {
             let finalYResumen = doc.lastAutoTable.finalY || 40;
             doc.setFontSize(12);
             doc.text("Detalle de Registros", 14, finalYResumen + 10);
-            const registrosTableHeaders = [["RUT", "Nombre", "Fecha", "Entrada", "Salida", "H.E. 25%", "H.E. 50%", "Estado"]];
+            const registrosTableHeaders = [["RUT", "Nombre", "Fecha", "Entrada", "Salida", "H.E. 25%", "H.E. 50%", "Observaciones", "Estado"]];
             const registrosTableBody = dataToExport.registros.map(r => [
-                r.rut, r.nombre, r.fecha, r.entrada, r.salida, r.horasExtra25, r.horasExtra50, r.estado
+                r.rut, r.nombre, r.fecha, r.entrada, r.salida, r.horasExtra25, r.horasExtra50, r.observaciones, r.estado
             ]);
             autoTable(doc, {
                 startY: finalYResumen + 15,
@@ -586,14 +586,15 @@ export default function Resumen() {
                 headStyles: { fillColor: [22, 160, 133] },
                 styles: { fontSize: 8 },
                 columnStyles: {
-                    0: { cellWidth: 30 },
-                    1: { cellWidth: 45 },
-                    2: { cellWidth: 25 },
-                    3: { cellWidth: 25 },
-                    4: { cellWidth: 25 },
-                    5: { cellWidth: 25 },
-                    6: { cellWidth: 25 },
-                    7: { cellWidth: 30 },
+                    0: { cellWidth: 25 },
+                    1: { cellWidth: 35 },
+                    2: { cellWidth: 20 },
+                    3: { cellWidth: 20 },
+                    4: { cellWidth: 20 },
+                    5: { cellWidth: 20 },
+                    6: { cellWidth: 20 },
+                    7: { cellWidth: 40 },
+                    8: { cellWidth: 25 },
                 }
             });
 
@@ -648,6 +649,7 @@ export default function Resumen() {
                 salida: esFormatoHoraSimple(r.salida) ? r.salida : (r.salida ? formatearHora(r.salida) : 'N/A'),
                 horasExtra25: formatearTiempo(r.minutosExtra25),
                 horasExtra50: formatearTiempo(r.minutosExtra50),
+                observaciones: r.observaciones || '',
                 estado: r.estado
             })),
             filtros: {
@@ -688,6 +690,7 @@ export default function Resumen() {
                 "Salida": r.salida,
                 "H.E. 25%": r.horasExtra25,
                 "H.E. 50%": r.horasExtra50,
+                "Observaciones": r.observaciones,
                 "Estado": r.estado
             })));
 
