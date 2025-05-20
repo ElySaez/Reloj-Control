@@ -1,5 +1,6 @@
 package com.relojcontrol.reloj_control.controller;
 
+import com.relojcontrol.reloj_control.dto.EmpleadoAtrasosDTO;
 import com.relojcontrol.reloj_control.model.Empleado;
 import com.relojcontrol.reloj_control.model.Asistencia;
 import com.relojcontrol.reloj_control.repository.AsistenciaRepository;
@@ -19,11 +20,9 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
+import java.time.LocalTime;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 /**
  * Controlador para gestionar las asistencias de los empleados.
@@ -75,6 +74,38 @@ public class AsistenciaController {
             return ResponseEntity.ok(asistencia);
         } catch (Exception e) {
             logger.error("Error al marcar asistencia", e);
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Obtener listado de empleados cuyo ingreso es despues de un horario
+     *
+     * @return Lista de asistencias del empleado
+     */
+    @Operation(summary = "Obtener listado de empleados cuyo ingreso es despues de un horario",
+            description = "Obtiene todas los empleados cuyo ingreso es despues de un horario")
+    @GetMapping("/resumen/atrasos")
+    public ResponseEntity<?> despuesdeHorario(@RequestParam(required = false) LocalDate inicio,
+                                              @RequestParam(required = false) LocalDate fin,
+                                              @RequestParam(required = false) LocalTime horario) {
+        try {
+            List<Asistencia> asistencias = asRepo.findAsistenciasEnRangoFechasYDespuesDeHoraLimiteNativa(inicio, fin, horario);
+            HashMap<Empleado, Integer> empleados = new HashMap<>();
+            asistencias.forEach(asistencia -> {
+                if(asistencia.getTipo().equals("ENTRADA") && asistencia.getEsOficial()){
+                    if (empleados.containsKey(asistencia.getEmpleado())){
+                        empleados.put(asistencia.getEmpleado(), empleados.get(asistencia.getEmpleado())+1);
+                    } else {
+                        empleados.put(asistencia.getEmpleado(), 1);
+                    }
+                }
+            });
+            List<EmpleadoAtrasosDTO> empleadoAtrasos =empleados.keySet().stream().map(empleado -> new EmpleadoAtrasosDTO(empleado, empleados.get(empleado))).toList();
+
+            return ResponseEntity.ok(empleadoAtrasos);
+        } catch (Exception e) {
+            logger.error("Error al obtener asistencias por empleado", e);
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
