@@ -1,5 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getResumen, getResumenMensual, actualizarEstadoAsistencia, getMarcasPorEmpleadoYFechas, marcarAsistencia } from '../api/index'
+
+// Imports para generación de reportes en frontend
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx'; // Para Excel
+
+// Helper para verificar si es un string de hora simple
+const esFormatoHoraSimple = (valor) => {
+    if (typeof valor !== 'string') return false;
+    return /^\d{2}:\d{2}(:\d{2})?$/.test(valor);
+};
 
 export default function Resumen() {
     // Inicializar con una fecha predeterminada en formato correcto
@@ -7,114 +18,165 @@ export default function Resumen() {
     const [fechaInicio, setFechaInicio] = useState(fechaHoy)
     const [fechaFin, setFechaFin] = useState('')
     const [rut, setRut] = useState('')
-    const [data, setData] = useState([])
+    const [data, setData] = useState([]) // Datos originales de la API
+    const [registrosFiltrados, setRegistrosFiltrados] = useState([]); // Datos para mostrar y exportar
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const [savingState, setSavingState] = useState(false) // Para indicar cambios de estado en proceso
+    const [savingState, setSavingState] = useState(false)
     const [savingStateId, setSavingStateId] = useState(null)
     
-    // Estados para modal de edición
     const [showModal, setShowModal] = useState(false)
     const [registroSeleccionado, setRegistroSeleccionado] = useState(null)
     const [entradaManual, setEntradaManual] = useState('08:00')
     const [salidaManual, setSalidaManual] = useState('17:00')
     const [guardandoMarcas, setGuardandoMarcas] = useState(false)
     
-    // Estado para controlar la carga de marcas individuales
     const [guardandoEntrada, setGuardandoEntrada] = useState(false);
     const [guardandoSalida, setGuardandoSalida] = useState(false);
-
-    // Eliminar validación en tiempo real y el estado esHoraValida
     const [errorHora, setErrorHora] = useState('');
 
-    // Función para buscar datos con mejor manejo de errores y más opciones de filtrado
-    const fetchData = async () => {
-        setLoading(true)
-        setError('')
-        setData([]) // Limpiar datos anteriores
-        
+    const [resumen, setResumen] = useState({
+        AUTORIZADO: { minutos25: 0, minutos50: 0 },
+        RECHAZADO: { minutos25: 0, minutos50: 0 },
+        PENDIENTE: { minutos25: 0, minutos50: 0 },
+    });
+    const [totalGeneral25, setTotalGeneral25] = useState(0);
+    const [totalGeneral50, setTotalGeneral50] = useState(0);
+
+    const formatearTiempo = useCallback((minutos) => {
+        if (minutos === undefined || minutos === null || isNaN(minutos)) return '00:00:00';
+        if (minutos === 0) return '00:00:00';
+        const esNegativo = minutos < 0;
+        const absMinutos = Math.abs(minutos);
+        const horas = Math.floor(absMinutos / 60);
+        const mins = absMinutos % 60;
+        return `${esNegativo ? '-' : ''}${String(horas).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
+    }, []);
+
+    const formatearHora = useCallback((fechaISO) => {
+        if (!fechaISO) return 'N/A';
         try {
-            // Verificar que el RUT tenga al menos 4 caracteres si no está vacío
+            const fechaObj = new Date(fechaISO);
+            if (isNaN(fechaObj.getTime())) { // Verificar si la fecha es válida
+                // Intentar parsear formatos comunes si la conversión directa falla
+                const parts = fechaISO.split(/[-/ :T]/);
+                let reformattedDate;
+                if (parts.length >= 3) {
+                    // Suponiendo DD/MM/YYYY o YYYY-MM-DD
+                    if (parts[0].length === 4) { // YYYY-MM-DD
+                        reformattedDate = new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0);
+                    } else { // DD/MM/YYYY
+                         reformattedDate = new Date(parts[2], parts[1] - 1, parts[0], parts[3] || 0, parts[4] || 0, parts[5] || 0);
+                    }
+                     if (isNaN(reformattedDate.getTime())) return 'N/A';
+                     const horas = String(reformattedDate.getHours()).padStart(2, '0');
+                     const minutos = String(reformattedDate.getMinutes()).padStart(2, '0');
+                     const segundos = String(reformattedDate.getSeconds()).padStart(2, '0');
+                     return `${horas}:${minutos}:${segundos}`;
+                }
+                return 'N/A';
+            }
+            const horas = String(fechaObj.getHours()).padStart(2, '0');
+            const minutos = String(fechaObj.getMinutes()).padStart(2, '0');
+            const segundos = String(fechaObj.getSeconds()).padStart(2, '0');
+            return `${horas}:${minutos}:${segundos}`;
+        } catch (error) {
+            console.error("Error formateando hora:", fechaISO, error);
+            return 'N/A';
+        }
+    }, []);
+    
+    const fetchData = async () => {
+        setLoading(true);
+        setError('');
+        setData([]);
+        setRegistrosFiltrados([]); // Limpiar registros filtrados también
+
+        try {
             if (rut && !validarRutMinimo(rut)) {
                 setError('El RUT debe tener al menos 4 dígitos para realizar la búsqueda');
                 setLoading(false);
                 return;
             }
             
-            // Usar filtro por rango de fechas
             const inicioParam = fechaInicio;
             const finParam = fechaFin || undefined;
             
-            console.log('Consultando con rango de fechas:', {
-                inicio: inicioParam,
-                fin: finParam,
-                rut: rut || undefined
-            });
+            const respuesta = await getResumen(
+                inicioParam,
+                finParam,
+                rut || undefined
+            );
             
-            try {
-                // Usar el método normal con fechas
-                const respuesta = await getResumen(
-                    inicioParam,
-                    finParam,
-                    rut || undefined
-                );
-                
-                console.log('Respuesta recibida:', respuesta);
-                
-                // Verificar si la respuesta es un objeto con mensaje (sin resultados)
-                if (respuesta && !Array.isArray(respuesta) && respuesta.mensaje) {
-                    setError(respuesta.mensaje);
-                    setData([]);
-                    setLoading(false);
-                    return;
-                }
-                
-                // Asegurarse de que respuesta sea un array
+            if (respuesta && !Array.isArray(respuesta) && respuesta.mensaje) {
+                setError(respuesta.mensaje);
+                // setData([]); // Ya se limpió arriba
+                // setRegistrosFiltrados([]); // Ya se limpió arriba
+            } else {
                 const datosArray = Array.isArray(respuesta) ? respuesta : (respuesta && respuesta.data ? respuesta.data : []);
-                
-                // Procesar y ordenar los resultados
                 if (datosArray.length > 0) {
-                    // Establecer estado AUTORIZADO por defecto si no está definido
                     const datosConEstadoDefecto = datosArray.map(item => ({
                         ...item,
-                        estado: item.estado || 'AUTORIZADO'
+                        estado: item.estado || 'AUTORIZADO' 
                     }));
                     
-                    // Ordenar por fecha y nombre
                     datosConEstadoDefecto.sort((a, b) => {
                         if (!a.fecha || !b.fecha) return 0;
                         const fechaComp = a.fecha.localeCompare(b.fecha);
                         if (fechaComp === 0) {
-                            return a.nombre.localeCompare(b.nombre);
+                            return (a.nombre || '').localeCompare(b.nombre || '');
                         }
                         return fechaComp;
                     });
                     
-                    setData(datosConEstadoDefecto);
+                    setData(datosConEstadoDefecto); // Guardar datos originales
+                    setRegistrosFiltrados(datosConEstadoDefecto); // Establecer para la tabla y exportación
                 } else {
-                    setData([]);
+                    // setData([]); // Ya se limpió
+                    // setRegistrosFiltrados([]); // Ya se limpió
                     setError('No se encontraron resultados para los filtros seleccionados');
                 }
-            } catch (rangoError) {
-                console.error('Error en rango de fechas:', rangoError);
-                setError(`Error al consultar por rango de fechas: ${rangoError.message}`);
-                setLoading(false);
-                return;
             }
         } catch (err) {
-            console.error('Error general:', err);
+            console.error('Error general en fetchData:', err);
             setError(err.message || 'Error al cargar los datos');
-            setData([]);
+            // setData([]); // Ya se limpió
+            // setRegistrosFiltrados([]); // Ya se limpió
         } finally {
             setLoading(false);
         }
     };
 
-    // Efecto para cargar datos cuando se monta el componente
+    const calcularResumenDetallado = useCallback(() => {
+        let resumenCalculado = {
+            AUTORIZADO: { minutos25: 0, minutos50: 0 },
+            RECHAZADO: { minutos25: 0, minutos50: 0 },
+            PENDIENTE: { minutos25: 0, minutos50: 0 },
+        };
+        let total25 = 0;
+        let total50 = 0;
+
+        registrosFiltrados.forEach(registro => {
+            const estado = registro.estado || 'PENDIENTE';
+            const minutos25 = parseInt(registro.minutosExtra25 || 0);
+            const minutos50 = parseInt(registro.minutosExtra50 || 0);
+
+            if (resumenCalculado[estado]) {
+                resumenCalculado[estado].minutos25 += minutos25;
+                resumenCalculado[estado].minutos50 += minutos50;
+            }
+            total25 += minutos25;
+            total50 += minutos50;
+        });
+        setResumen(resumenCalculado);
+        setTotalGeneral25(total25);
+        setTotalGeneral50(total50);
+    }, [registrosFiltrados]); // No necesita dependencias de setResumen, etc.
+
     useEffect(() => {
-        // No cargamos datos automáticamente al montar el componente
-        // Dejamos que el usuario inicie la búsqueda
-    }, []);
+        // Recalcular resumen cuando los registros filtrados cambian
+        calcularResumenDetallado();
+    }, [registrosFiltrados, calcularResumenDetallado]);
 
     // Solo ejecutar búsqueda cuando el usuario haga clic en buscar, no en cada cambio
     const handleBuscar = (e) => {
@@ -210,29 +272,36 @@ export default function Resumen() {
     // Función para manejar el cambio de estado
     const handleEstadoChange = async (id, nuevoEstado) => {
         try {
-            setSavingState(true)
-            setSavingStateId(id)
-            await actualizarEstadoAsistencia(id, nuevoEstado)
+            setSavingState(true);
+            setSavingStateId(id);
+            await actualizarEstadoAsistencia(id, nuevoEstado);
             
-            // Actualizar el estado en los datos locales
-            const newData = data.map(item => {
+            const updatedData = data.map(item => {
                 if (item.idAsistencia === id) {
-                    return { ...item, estado: nuevoEstado }
+                    return { ...item, estado: nuevoEstado };
                 }
-                return item
-            })
-            setData(newData)
+                return item;
+            });
+            setData(updatedData);
+
+            // Actualizar también registrosFiltrados para disparar el recálculo del resumen
+            const updatedRegistrosFiltrados = registrosFiltrados.map(item => {
+                if (item.idAsistencia === id) {
+                   return { ...item, estado: nuevoEstado };
+               }
+               return item;
+           });
+           setRegistrosFiltrados(updatedRegistrosFiltrados);
             
-            // Mostrar mensaje de éxito
-            setError('')
+            setError('');
         } catch (err) {
-            console.error('Error al cambiar el estado:', err)
-            setError(`Error al actualizar el estado: ${err.message}`)
+            console.error('Error al cambiar el estado:', err);
+            setError(`Error al actualizar el estado: ${err.message}`);
         } finally {
-            setSavingState(false)
-            setSavingStateId(null)
+            setSavingState(false);
+            setSavingStateId(null);
         }
-    }
+    };
 
     // Función para abrir el modal y cargar las marcas del día
     const handleOpenModal = async (registro) => {
@@ -463,6 +532,190 @@ export default function Resumen() {
     const fechaResumen = registroSeleccionado?.fecha || '';
     const fechaFormateada = fechaResumen.includes('/') ? `${fechaResumen.split('/')[2]}-${fechaResumen.split('/')[1].padStart(2, '0')}-${fechaResumen.split('/')[0].padStart(2, '0')}` : fechaResumen;
 
+    const handleDescargarPDF = () => {
+        if (registrosFiltrados.length === 0) {
+            alert("No hay datos para exportar.");
+            return;
+        }
+        setLoading(true);
+        setError('');
+
+        try {
+            const doc = new jsPDF({ orientation: 'landscape' });
+            const dataToExport = obtenerDatosParaReporte();
+
+            doc.setFontSize(18);
+            doc.text("Reporte de Asistencia", doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.text(`Filtros: Desde: ${dataToExport.filtros.fechaInicio} - Hasta: ${dataToExport.filtros.fechaFin} - ${dataToExport.filtros.rut}`, 14, 25);
+
+            doc.setFontSize(12);
+            doc.text("Resumen de Horas Extras", 14, 35);
+            const resumenTableHeaders = [["Estado", "Minutos al 25%", "Minutos al 50%", "Total Horas Extras"]];
+            const resumenTableBody = [
+                ["Aprobadas", dataToExport.resumenTabla.aprobadas.minutos25, dataToExport.resumenTabla.aprobadas.minutos50, dataToExport.resumenTabla.aprobadas.total],
+                ["Rechazadas", dataToExport.resumenTabla.rechazadas.minutos25, dataToExport.resumenTabla.rechazadas.minutos50, dataToExport.resumenTabla.rechazadas.total],
+                ["Pendientes", dataToExport.resumenTabla.pendientes.minutos25, dataToExport.resumenTabla.pendientes.minutos50, dataToExport.resumenTabla.pendientes.total],
+                [{ content: "Total General", styles: { fontStyle: 'bold' } },
+                 { content: dataToExport.resumenTabla.totalGeneral.minutos25, styles: { fontStyle: 'bold' } },
+                 { content: dataToExport.resumenTabla.totalGeneral.minutos50, styles: { fontStyle: 'bold' } },
+                 { content: dataToExport.resumenTabla.totalGeneral.total, styles: { fontStyle: 'bold' } }]
+            ];
+            autoTable(doc, {
+                startY: 40,
+                head: resumenTableHeaders,
+                body: resumenTableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [22, 160, 133] },
+                styles: { fontSize: 9 },
+            });
+
+            let finalYResumen = doc.lastAutoTable.finalY || 40;
+            doc.setFontSize(12);
+            doc.text("Detalle de Registros", 14, finalYResumen + 10);
+            const registrosTableHeaders = [["RUT", "Nombre", "Fecha", "Entrada", "Salida", "H.E. 25%", "H.E. 50%", "Estado"]];
+            const registrosTableBody = dataToExport.registros.map(r => [
+                r.rut, r.nombre, r.fecha, r.entrada, r.salida, r.horasExtra25, r.horasExtra50, r.estado
+            ]);
+            autoTable(doc, {
+                startY: finalYResumen + 15,
+                head: registrosTableHeaders,
+                body: registrosTableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [22, 160, 133] },
+                styles: { fontSize: 8 },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 45 },
+                    2: { cellWidth: 25 },
+                    3: { cellWidth: 25 },
+                    4: { cellWidth: 25 },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 25 },
+                    7: { cellWidth: 30 },
+                }
+            });
+
+            doc.save("reporte_asistencia.pdf");
+
+        } catch (err) {
+            console.error("Error al generar PDF:", err);
+            setError("Error al generar PDF: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    const obtenerDatosParaReporte = () => {
+        let rutDisplay = "Todos";
+        if (rut) {
+            rutDisplay = `RUT: ${rut}`;
+            const primerRegistro = registrosFiltrados && registrosFiltrados.length > 0 ? registrosFiltrados[0] : null;
+            if (primerRegistro && primerRegistro.nombre) {
+                rutDisplay += ` (${primerRegistro.nombre})`;
+            }
+        }
+
+        return {
+            resumenTabla: {
+                aprobadas: {
+                    minutos25: formatearTiempo(resumen.AUTORIZADO.minutos25),
+                    minutos50: formatearTiempo(resumen.AUTORIZADO.minutos50),
+                    total: formatearTiempo(resumen.AUTORIZADO.minutos25 + resumen.AUTORIZADO.minutos50)
+                },
+                rechazadas: {
+                    minutos25: formatearTiempo(resumen.RECHAZADO.minutos25),
+                    minutos50: formatearTiempo(resumen.RECHAZADO.minutos50),
+                    total: formatearTiempo(resumen.RECHAZADO.minutos25 + resumen.RECHAZADO.minutos50)
+                },
+                pendientes: {
+                    minutos25: formatearTiempo(resumen.PENDIENTE.minutos25),
+                    minutos50: formatearTiempo(resumen.PENDIENTE.minutos50),
+                    total: formatearTiempo(resumen.PENDIENTE.minutos25 + resumen.PENDIENTE.minutos50)
+                },
+                totalGeneral: {
+                    minutos25: formatearTiempo(totalGeneral25),
+                    minutos50: formatearTiempo(totalGeneral50),
+                    total: formatearTiempo(totalGeneral25 + totalGeneral50)
+                }
+            },
+            registros: registrosFiltrados.map(r => ({
+                fecha: r.fecha,
+                rut: r.rut || 'N/A',
+                nombre: r.nombre || 'N/A',
+                entrada: esFormatoHoraSimple(r.entrada) ? r.entrada : (r.entrada ? formatearHora(r.entrada) : 'N/A'),
+                salida: esFormatoHoraSimple(r.salida) ? r.salida : (r.salida ? formatearHora(r.salida) : 'N/A'),
+                horasExtra25: formatearTiempo(r.minutosExtra25),
+                horasExtra50: formatearTiempo(r.minutosExtra50),
+                estado: r.estado
+            })),
+            filtros: {
+                fechaInicio: fechaInicio || "N/A",
+                fechaFin: fechaFin || "N/A",
+                rut: rutDisplay
+            }
+        };
+    };
+
+    const handleDescargarExcel = () => {
+        if (registrosFiltrados.length === 0) {
+            alert("No hay datos para exportar.");
+            return;
+        }
+        setLoading(true);
+        setError('');
+
+        try {
+            const dataToExport = obtenerDatosParaReporte();
+            
+            const wsResumen = XLSX.utils.json_to_sheet([
+                { Seccion: "Resumen de Horas Extras" },
+                { Estado: "Aprobadas", "Minutos al 25%": dataToExport.resumenTabla.aprobadas.minutos25, "Minutos al 50%": dataToExport.resumenTabla.aprobadas.minutos50, "Total Horas Extras": dataToExport.resumenTabla.aprobadas.total },
+                { Estado: "Rechazadas", "Minutos al 25%": dataToExport.resumenTabla.rechazadas.minutos25, "Minutos al 50%": dataToExport.resumenTabla.rechazadas.minutos50, "Total Horas Extras": dataToExport.resumenTabla.rechazadas.total },
+                { Estado: "Pendientes", "Minutos al 25%": dataToExport.resumenTabla.pendientes.minutos25, "Minutos al 50%": dataToExport.resumenTabla.pendientes.minutos50, "Total Horas Extras": dataToExport.resumenTabla.pendientes.total },
+                { Estado: "Total General", "Minutos al 25%": dataToExport.resumenTabla.totalGeneral.minutos25, "Minutos al 50%": dataToExport.resumenTabla.totalGeneral.minutos50, "Total Horas Extras": dataToExport.resumenTabla.totalGeneral.total }
+            ], { skipHeader: true });
+            XLSX.utils.sheet_add_aoa(wsResumen, [
+                ["Estado", "Minutos al 25%", "Minutos al 50%", "Total Horas Extras"]
+            ], { origin: "A2" });
+
+            const wsRegistros = XLSX.utils.json_to_sheet(dataToExport.registros.map(r => ({
+                "RUT": r.rut,
+                "Nombre": r.nombre,
+                "Fecha": r.fecha,
+                "Entrada": r.entrada,
+                "Salida": r.salida,
+                "H.E. 25%": r.horasExtra25,
+                "H.E. 50%": r.horasExtra50,
+                "Estado": r.estado
+            })));
+
+            // Hoja de información general (sin empresa)
+            const wsInfo = XLSX.utils.aoa_to_sheet([
+                ["Reporte de Asistencia"],
+                [],
+                ["Filtros Aplicados:"],
+                ["Fecha Inicio:", dataToExport.filtros.fechaInicio],
+                ["Fecha Fin:", dataToExport.filtros.fechaFin],
+                [dataToExport.filtros.rut]
+            ]);
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, wsInfo, "Información");
+            XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Horas Extras");
+            XLSX.utils.book_append_sheet(wb, wsRegistros, "Detalle Registros");
+
+            XLSX.writeFile(wb, "reporte_asistencia.xlsx");
+
+        } catch (err) {
+            console.error("Error al generar Excel:", err);
+            setError("Error al generar Excel: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="container py-4">
             <div className="row justify-content-center">
@@ -589,13 +842,13 @@ export default function Resumen() {
                                                             </td>
                                                             <td>
                                                                 <span className="badge bg-success bg-opacity-10 text-success">
-                                                                    {registro.entrada}
+                                                                    {esFormatoHoraSimple(registro.entrada) ? registro.entrada : formatearHora(registro.entrada)}
                                                                 </span>
                                                             </td>
                                                             <td>
                                                                 {registro.salida ? (
                                                                     <span className="badge bg-primary bg-opacity-10 text-primary">
-                                                                        {registro.salida}
+                                                                        {esFormatoHoraSimple(registro.salida) ? registro.salida : formatearHora(registro.salida)}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="badge bg-secondary bg-opacity-10 text-secondary">
@@ -605,7 +858,7 @@ export default function Resumen() {
                                                             </td>
                                                             <td>
                                                                 <span className="badge bg-info bg-opacity-10 text-info">
-                                                                    {registro.salidaEsperada}
+                                                                    {esFormatoHoraSimple(registro.salidaEsperada) ? registro.salidaEsperada : formatearHora(registro.salidaEsperada)}
                                                                 </span>
                                                             </td>
                                                             <td className="text-end">
@@ -660,107 +913,67 @@ export default function Resumen() {
                                     {/* Resumen de horas extras */}
                                     <div className="card mb-4">
                                         <div className="card-header bg-primary text-white">
-                                            Resumen de Horas Extras
+                                            <h5 className="card-title text-center mb-3">Resumen de Horas Extras</h5>
                                         </div>
                                         <div className="table-responsive">
-                                            <table className="table mb-0">
-                                                <thead>
-                                                    <tr className="table-light">
-                                                        <th>Estado</th>
-                                                        <th className="text-center">H.E. 25%</th>
-                                                        <th className="text-center">H.E. 50%</th>
-                                                        <th className="text-center">Total</th>
+                                            <table className="table table-sm table-bordered table-hover">
+                                                <thead className="table-light">
+                                                    <tr>
+                                                        <th scope="col" className="text-center">Estado</th>
+                                                        <th scope="col" className="text-center">Minutos al 25%</th>
+                                                        <th scope="col" className="text-center">Minutos al 50%</th>
+                                                        <th scope="col" className="text-center fw-bold">Total Horas Extras</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody>
-                                                    {/* Calcular resumen por estado */}
-                                                    {(() => {
-                                                        // Agrupar por estado y calcular totales
-                                                        const resumen = {
-                                                            AUTORIZADO: { minutos25: 0, minutos50: 0 },
-                                                            RECHAZADO: { minutos25: 0, minutos50: 0 },
-                                                            PENDIENTE: { minutos25: 0, minutos50: 0 }
-                                                        };
-                                                        
-                                                        // Total general de todas las horas extras
-                                                        let totalGeneral25 = 0;
-                                                        let totalGeneral50 = 0;
-                                                        
-                                                        data.forEach(registro => {
-                                                            // Asegurar que siempre haya un estado válido
-                                                            const estado = registro.estado || 'AUTORIZADO';
-                                                            
-                                                            // Asegurar que los valores de minutos sean números
-                                                            const minutos25 = parseInt(registro.minutosExtra25 || 0);
-                                                            const minutos50 = parseInt(registro.minutosExtra50 || 0);
-                                                            
-                                                            if (resumen[estado]) {
-                                                                resumen[estado].minutos25 += minutos25;
-                                                                resumen[estado].minutos50 += minutos50;
-                                                            }
-                                                            
-                                                            // Sumar al total general
-                                                            totalGeneral25 += minutos25;
-                                                            totalGeneral50 += minutos50;
-                                                        });
-                                                        
-                                                        // Convertir minutos a formato horas:minutos:segundos
-                                                        const formatearTiempo = (minutos) => {
-                                                            if (minutos === 0) return '00:00:00';
-                                                            const horas = Math.floor(Math.abs(minutos) / 60);
-                                                            const mins = Math.abs(minutos) % 60;
-                                                            return `${minutos < 0 ? '-' : ''}${String(horas).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
-                                                        };
-                                                        
-                                                        return (
-                                                            <>
-                                                                <tr>
-                                                                    <td>Aprobadas</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos25)}</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos50)}</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.AUTORIZADO.minutos25 + resumen.AUTORIZADO.minutos50)}</td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <td>Rechazadas</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos25)}</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos50)}</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.RECHAZADO.minutos25 + resumen.RECHAZADO.minutos50)}</td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <td>Pendientes</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos25)}</td>
-                                                                    <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos50)}</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(resumen.PENDIENTE.minutos25 + resumen.PENDIENTE.minutos50)}</td>
-                                                                </tr>
-                                                                <tr className="table-primary">
-                                                                    <td className="fw-bold">Total General</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral25)}</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral50)}</td>
-                                                                    <td className="text-center fw-bold">{formatearTiempo(totalGeneral25 + totalGeneral50)}</td>
-                                                                </tr>
-                                                            </>
-                                                        );
-                                                    })()}
+                                                <tbody className="table-group-divider">
+                                                    <tr>
+                                                        <td>Aprobadas</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos25)}</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.AUTORIZADO.minutos50)}</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(resumen.AUTORIZADO.minutos25 + resumen.AUTORIZADO.minutos50)}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Rechazadas</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos25)}</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.RECHAZADO.minutos50)}</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(resumen.RECHAZADO.minutos25 + resumen.RECHAZADO.minutos50)}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Pendientes</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos25)}</td>
+                                                        <td className="text-center">{formatearTiempo(resumen.PENDIENTE.minutos50)}</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(resumen.PENDIENTE.minutos25 + resumen.PENDIENTE.minutos50)}</td>
+                                                    </tr>
+                                                    <tr className="table-primary">
+                                                        <td className="fw-bold">Total General</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(totalGeneral25)}</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(totalGeneral50)}</td>
+                                                        <td className="text-center fw-bold">{formatearTiempo(totalGeneral25 + totalGeneral50)}</td>
+                                                    </tr>
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
                                     
                                     {/* Botones de exportación */}
-                                    <div className="row mb-2">
-                                        <div className="col">
-                                            <button className="btn btn-success w-100">
-                                                <i className="bi bi-file-pdf me-2"></i> DESCARGAR PDF
-                                            </button>
+                                    {registrosFiltrados && registrosFiltrados.length > 0 && (
+                                        <div className="mt-3">
+                                            <div className="row mb-2">
+                                                <div className="col">
+                                                    <button className="btn btn-success w-100" onClick={handleDescargarPDF} disabled={loading}>
+                                                        <i className="bi bi-file-pdf me-2"></i> DESCARGAR PDF
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="row">
+                                                <div className="col">
+                                                    <button className="btn btn-success w-100" onClick={handleDescargarExcel} disabled={loading}>
+                                                        <i className="bi bi-file-excel me-2"></i> DESCARGAR EXCEL
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="row">
-                                        <div className="col">
-                                            <button className="btn btn-success w-100">
-                                                <i className="bi bi-file-excel me-2"></i> DESCARGAR EXCEL
-                                            </button>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="alert alert-info text-center py-4">
