@@ -1,4 +1,4 @@
-const API_URL = '/api'
+export const API_URL = '/api'
 
 // Función básica para realizar peticiones GET
 const hacerPeticionGet = async (url) => {
@@ -419,24 +419,22 @@ export const getMarcasPorEmpleadoYFechas = async (rut, fechaInicio, fechaFin = n
 // Nueva función para crear una justificación
 export const crearJustificacion = async (formData) => {
     try {
-        const response = await fetch(`${API_URL}/justificaciones`, { // Asumiendo que el endpoint es /api/justificaciones
+        const response = await fetch(`${API_URL}/justificaciones`, {
             method: 'POST',
-            body: formData, // FormData se envía directamente, el navegador establece el Content-Type
+            body: formData, 
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => null); // Intenta parsear JSON, si falla, usa texto
+            const errorData = await response.json().catch(() => null); 
             const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
             const error = new Error(errorMessage);
             error.response = {
                 status: response.status,
-                data: errorData || { message: errorMessage }, // Asegurar que error.response.data exista
+                data: errorData || { message: errorMessage }, 
             };
             throw error;
         }
 
-        // Si la respuesta es 201 Created (o 200 OK) y tiene cuerpo JSON, lo devuelve
-        // Si no hay cuerpo, o no es JSON, devuelve un objeto indicando éxito
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.indexOf("application/json") !== -1) {
             return response.json(); 
@@ -445,7 +443,30 @@ export const crearJustificacion = async (formData) => {
 
     } catch (error) {
         console.error('Error en crearJustificacion:', error);
-        // Re-lanzar el error para que el componente lo maneje y muestre el mensaje
         throw error; 
+    }
+};
+
+export const getJustificacionesPorRutEmpleado = async (rutEmpleado) => {
+    try {
+        if (!rutEmpleado || typeof rutEmpleado !== 'string' || rutEmpleado.trim() === '') {
+            throw new Error('El RUT del empleado es requerido para la búsqueda.');
+        }
+        const response = await fetch(`${API_URL}/justificaciones/empleado/${encodeURIComponent(rutEmpleado.trim())}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
+            const error = new Error(errorMessage);
+            error.response = {
+                status: response.status,
+                data: errorData || { message: errorMessage },
+            };
+            throw error;
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Error en getJustificacionesPorRutEmpleado:', error);
+        throw error;
     }
 }; 
