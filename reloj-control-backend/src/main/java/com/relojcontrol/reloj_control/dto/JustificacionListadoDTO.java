@@ -3,38 +3,29 @@ package com.relojcontrol.reloj_control.dto;
 import com.relojcontrol.reloj_control.model.Empleado;
 import com.relojcontrol.reloj_control.model.Justificacion;
 import com.relojcontrol.reloj_control.model.TipoPermiso;
-import jakarta.persistence.*;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 public class JustificacionListadoDTO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id_justificacion")
     private Long idJustificacion;
 
-    @ManyToOne
-    @JoinColumn(name = "id_empleado", nullable = false)
     private Empleado empleado;
 
-    @ManyToOne
-    @JoinColumn(name = "tipo_permiso", nullable = false)
     private TipoPermiso tipoPermiso;
 
-    @Column(name = "fecha_inicio", nullable = false)
     private LocalDate fechaInicio;
 
-    @Column(name = "fecha_termino", nullable = false)
     private LocalDate fechaTermino;
 
-    @Column(columnDefinition = "text")
     private String motivo;
 
-    @Column(nullable = false)
     private String estado;
 
-    public JustificacionListadoDTO(Long idJustificacion, Empleado empleado, TipoPermiso tipoPermiso, LocalDate fechaInicio, LocalDate fechaTermino, String motivo, String estado) {
+    private Boolean archivo;
+
+    public JustificacionListadoDTO(Long idJustificacion, Empleado empleado, TipoPermiso tipoPermiso, LocalDate fechaInicio, LocalDate fechaTermino, String motivo, String estado, Boolean archivo) {
         this.idJustificacion = idJustificacion;
         this.empleado = empleado;
         this.tipoPermiso = tipoPermiso;
@@ -42,6 +33,7 @@ public class JustificacionListadoDTO {
         this.fechaTermino = fechaTermino;
         this.motivo = motivo;
         this.estado = estado;
+        this.archivo = archivo;
     }
 
     public JustificacionListadoDTO(Justificacion j) {
@@ -52,6 +44,7 @@ public class JustificacionListadoDTO {
         this.fechaTermino = j.getFechaTermino();
         this.motivo = j.getMotivo();
         this.estado = j.getEstado();
+        this.archivo = Objects.nonNull(j.getArchivoAdjunto());
     }
 
     public Long getIdJustificacion() {
@@ -104,5 +97,13 @@ public class JustificacionListadoDTO {
 
     public void setEstado(String estado) {
         this.estado = estado;
+    }
+
+    public Boolean getArchivo() {
+        return archivo;
+    }
+
+    public void setArchivo(Boolean archivo) {
+        this.archivo = archivo;
     }
 }
