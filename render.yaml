@@ -1,0 +1,72 @@
+# =======================================================
+# Blueprint · Sistema Reloj-Control (ANTU)
+# =======================================================
+
+##### Base de datos (opcional – elimina si aún no la usas) #####
+databases:
+  - name: reloj-control-db            # Identificador dentro de Render
+    databaseName: relojcontroldb      # Nombre lógico dentro de PostgreSQL
+    user: relojcontrol
+    plan: free                        # Usa starter/standard si necesitas >1 GB
+
+##### Grupo de variables reutilizable #####
+envVarGroups:
+  - name: reloj-control-common
+    envVars:
+      - key: TZ
+        value: America/Santiago
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:+UseG1GC"
+
+##### Servicios ################################################
+services:
+
+# ────────────────────────────────────────────────
+# 1. BACKEND · Spring Boot 3 (Maven Wrapper)
+# ────────────────────────────────────────────────
+  - type: web
+    name: reloj-control-backend
+    branch: developer              # Rama con tu código
+    rootDir: reloj-control-backend # Carpeta del proyecto backend
+    runtime: java                  # Usa el runtime nativo de Render
+    plan: free
+    buildCommand: ./mvnw -B test package   # compila + ejecuta test JUnit
+    startCommand: java -jar target/*SNAPSHOT.jar
+    envVarGroups:
+      - reloj-control-common
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: reloj-control-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: reloj-control-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: reloj-control-db
+          property: password
+    healthCheckPath: /actuator/health   # expuesto por Spring Actuator
+    autoDeploy: true                    # Render redeploys al detectar cambios
+
+# ────────────────────────────────────────────────
+# 2. FRONTEND · React 18 + Vite
+# ────────────────────────────────────────────────
+  - type: web
+    name: reloj-control-frontend
+    branch: developer
+    rootDir: reloj-control-frontend
+    runtime: node
+    plan: free
+    buildCommand: |
+      npm ci
+      npm run test -- --watchAll=false   # Jest/Vitest; aborta si algo falla
+      npm run build                      # genera /dist
+    staticPublishPath: dist
+    envVarGroups:
+      - reloj-control-common
+    buildFilter:                         # Render sólo recompila el frontend si
+      paths:                             # cambian archivos dentro de esta ruta
+        - "reloj-control-frontend/**"
+    autoDeploy: true
