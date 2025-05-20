@@ -4,7 +4,7 @@ databases:
   - name: reloj-control-db
     databaseName: relojcontroldb
     user: relojcontrol
-    plan: free
+    plan: free           # ← aquí sí se declara
 
 envVarGroups:
   - name: reloj-control-common
@@ -15,12 +15,12 @@ envVarGroups:
         value: "-XX:+UseG1GC"
 
 services:
+  # BACKEND ─ Spring Boot (Docker)
   - type: web
     name: reloj-control-backend
     branch: developer
     rootDir: reloj-control-backend
     runtime: docker
-    plan: free
     dockerfilePath: reloj-control-backend/Dockerfile
     envVars:
       - fromGroup: reloj-control-common
@@ -39,12 +39,12 @@ services:
     healthCheckPath: /actuator/health
     autoDeploy: true
 
+  # FRONTEND ─ React + Vite (sitio estático)
   - type: web
     name: reloj-control-frontend
     branch: developer
     rootDir: reloj-control-frontend
     runtime: static
-    plan: free
     buildCommand: |
       npm ci
       npm run build
