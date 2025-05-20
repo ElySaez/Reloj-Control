@@ -1,15 +1,20 @@
-# =======================================================
-# Blueprint · Sistema Reloj-Control (ANTU)
-# =======================================================
+#########################################################################
+# render.yaml  ·  Sistema Reloj-Control (ANTU)
+# Infraestructura como código para Render.com
+#########################################################################
 
-##### Base de datos (opcional – elimina si aún no la usas) #####
+# ─────────────────────────────────────
+# 1. Base de datos (PostgreSQL)
+# ─────────────────────────────────────
 databases:
-  - name: reloj-control-db            # Identificador dentro de Render
-    databaseName: relojcontroldb      # Nombre lógico dentro de PostgreSQL
+  - name: reloj-control-db        # Identificador interno en Render
+    databaseName: relojcontroldb  # Nombre lógico dentro de PostgreSQL
     user: relojcontrol
-    plan: free                        # Usa starter/standard si necesitas >1 GB
+    plan: free                    # Starter/Standard si necesitas más capacidad
 
-##### Grupo de variables reutilizable #####
+# ─────────────────────────────────────
+# 2. Grupo de variables de entorno
+# ─────────────────────────────────────
 envVarGroups:
   - name: reloj-control-common
     envVars:
@@ -18,23 +23,22 @@ envVarGroups:
       - key: JAVA_TOOL_OPTIONS
         value: "-XX:+UseG1GC"
 
-##### Servicios ################################################
+# ─────────────────────────────────────
+# 3. Servicios
+# ─────────────────────────────────────
 services:
 
-# ────────────────────────────────────────────────
-# 1. BACKEND · Spring Boot 3 (Maven Wrapper)
-# ────────────────────────────────────────────────
+  # 3.1 BACKEND · Spring Boot 3 + Maven
   - type: web
     name: reloj-control-backend
-    branch: developer              # Rama con tu código
-    rootDir: reloj-control-backend # Carpeta del proyecto backend
-    runtime: java                  # Usa el runtime nativo de Render
+    branch: developer                  # Rama que vas a desplegar
+    rootDir: reloj-control-backend     # Subcarpeta del proyecto
+    runtime: java                      # Runtime nativo de Render
     plan: free
-    buildCommand: ./mvnw -B test package   # compila + ejecuta test JUnit
+    buildCommand: ./mvnw -B test package
     startCommand: java -jar target/*SNAPSHOT.jar
-    envVarGroups:
-      - reloj-control-common
     envVars:
+      - fromGroup: reloj-control-common   # ⬅ Referencia al grupo
       - key: SPRING_DATASOURCE_URL
         fromDatabase:
           name: reloj-control-db
@@ -47,12 +51,10 @@ services:
         fromDatabase:
           name: reloj-control-db
           property: password
-    healthCheckPath: /actuator/health   # expuesto por Spring Actuator
-    autoDeploy: true                    # Render redeploys al detectar cambios
+    healthCheckPath: /actuator/health
+    autoDeploy: true
 
-# ────────────────────────────────────────────────
-# 2. FRONTEND · React 18 + Vite
-# ────────────────────────────────────────────────
+  # 3.2 FRONTEND · React 18 + Vite
   - type: web
     name: reloj-control-frontend
     branch: developer
@@ -61,12 +63,12 @@ services:
     plan: free
     buildCommand: |
       npm ci
-      npm run test -- --watchAll=false   # Jest/Vitest; aborta si algo falla
-      npm run build                      # genera /dist
+      npm run test -- --watchAll=false   # Abortará el build si un test falla
+      npm run build
     staticPublishPath: dist
-    envVarGroups:
-      - reloj-control-common
-    buildFilter:                         # Render sólo recompila el frontend si
-      paths:                             # cambian archivos dentro de esta ruta
+    envVars:
+      - fromGroup: reloj-control-common
+    buildFilter:                         # Acelera builds en monorepo
+      paths:
         - "reloj-control-frontend/**"
     autoDeploy: true
