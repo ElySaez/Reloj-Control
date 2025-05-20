@@ -172,13 +172,13 @@ export default function Justificaciones() {
                                                 <td className="px-6 py-4">
                                                     {just.archivo ? (
                                                         <a 
-                                                            href={`${API_URL}/justificaciones/${just.idJustificacion}/archivo`}
+                                                            href={`${API_URL}/justificaciones/${just.idJustificacion}/archivo`} 
                                                             target="_blank" 
                                                             rel="noopener noreferrer"
                                                             className="font-medium text-blue-600 hover:underline flex items-center"
                                                             title="Descargar archivo adjunto"
                                                         >
-                                                            <span role="img" aria-label="Descargar archivo">📄</span>
+                                                            <span role="img" aria-label="Descargar archivo" style={{ fontSize: '1.2em' }}>📥</span>
                                                         </a>
                                                     ) : (
                                                         '-'
