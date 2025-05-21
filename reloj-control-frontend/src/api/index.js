@@ -217,12 +217,14 @@ export const importarArchivo = async (file) => {
         body: formData
     })
 
+    const responseText = await response.text(); // Leer como texto
+
     if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || `Error ${response.status}: ${response.statusText}`)
+        // Usar el texto de la respuesta en el error si está disponible
+        throw new Error(responseText || `Error ${response.status}: ${response.statusText}`)
     }
 
-    return await response.json()
+    return responseText; // Devolver el texto directamente
 }
 
 // Función para actualizar el estado de una asistencia

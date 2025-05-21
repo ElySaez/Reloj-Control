@@ -383,14 +383,16 @@ export default function Justificaciones() {
                     </div>
                 )}
 
-                <div className="mt-8 text-center">
-                    <button 
-                        onClick={abrirModalSolicitud}
-                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                    >
-                        Solicitar Nueva Justificación
-                    </button>
-                </div>
+                {userRole !== 'ROLE_ADMIN' && (
+                    <div className="text-center mt-4">
+                        <button
+                            onClick={abrirModalSolicitud}
+                            className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+                        >
+                            Solicitar Nueva Justificación
+                        </button>
+                    </div>
+                )}
             </div>
 
             {showSolicitudModal && (

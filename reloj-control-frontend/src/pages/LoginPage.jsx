@@ -40,11 +40,19 @@ export default function LoginPage() {
                 body: JSON.stringify({ run, password }),
             });
 
-            const data = await response.json();
-
+            // Primero verificar si la respuesta fue exitosa
             if (!response.ok) {
-                throw new Error(data.message || 'Error al iniciar sesión. Verifique sus credenciales.');
+                // Si no es OK (ej. 401, 403, 500), mostrar mensaje genérico.
+                // El backend podría no devolver JSON en estos casos.
+                setError('Error de autenticación. Verifique sus credenciales e intente de nuevo.');
+                // Opcionalmente, podrías intentar leer response.text() para un mensaje más específico si lo hubiera:
+                // const errorText = await response.text();
+                // setError(errorText || 'Error de autenticación. Verifique sus credenciales e intente de nuevo.');
+                throw new Error('Authentication failed'); // Lanzar error para detener el flujo normal
             }
+
+            // Si la respuesta es OK, entonces sí esperamos JSON
+            const data = await response.json(); 
 
             if (data.token) {
                 localStorage.setItem('token', data.token);
@@ -90,7 +98,11 @@ export default function LoginPage() {
             }
 
         } catch (err) {
-            setError(err.message);
+            // Si ya se estableció un mensaje de error específico (como el de !response.ok),
+            // no lo sobrescribas con el mensaje genérico de la excepción.
+            if (!error) {
+                setError(err.message || 'Ocurrió un error inesperado.');
+            }
         } finally {
             setLoading(false);
         }
