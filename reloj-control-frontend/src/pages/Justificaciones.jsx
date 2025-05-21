@@ -32,6 +32,7 @@ export default function Justificaciones() {
     }
 
     const handleSubmitNuevaJustificacion = async (e) => {
+        console.log('handleSubmitNuevaJustificacion INICIADO')
         e.preventDefault()
         setLoadingFormulario(true)
         setMensajeFormulario('')
@@ -238,7 +239,7 @@ export default function Justificaciones() {
                                     <button type="button" className="btn-close" onClick={cerrarModalSolicitud} aria-label="Close"></button>
                                 </div>
                                 <div className="modal-body">
-                                    <form onSubmit={handleSubmitNuevaJustificacion} className="space-y-6">
+                                    <form onSubmit={handleSubmitNuevaJustificacion} id="solicitudForm" className="space-y-6">
                                         <div>
                                             <label htmlFor="rutEmpleadoForm" className="block text-gray-700 text-sm font-bold mb-2">
                                                 RUT de Empleado
@@ -354,22 +355,27 @@ export default function Justificaciones() {
                                 <div className="modal-footer">
                                     <button 
                                         type="button" 
-                                        className="btn btn-secondary py-2 px-4 rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100"
+                                        className="btn btn-secondary me-2"
                                         onClick={cerrarModalSolicitud}
                                         disabled={loadingFormulario}
                                     >
                                         Cerrar
                                     </button>
                                     <button 
-                                        type="submit"
+                                        type="submit" 
                                         form="solicitudForm"
-                                        className="btn btn-primary py-2 px-4 rounded text-white bg-blue-500 hover:bg-blue-700 disabled:bg-blue-300"
-                                        onClick={() => document.getElementById('solicitudFormSubmitButton').click()}
+                                        className="btn btn-primary"
                                         disabled={loadingFormulario}
                                     >
-                                        {loadingFormulario ? 'Enviando...' : 'Enviar Justificación'}
+                                        {loadingFormulario ? (
+                                            <>
+                                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                Enviando...
+                                            </>
+                                        ) : (
+                                            'Enviar Justificación'
+                                        )}
                                     </button>
-                                    <button type="submit" id="solicitudFormSubmitButton" form="solicitudForm" style={{ display: 'none' }}>Submit</button>
                                 </div>
                             </div>
                         </div>
