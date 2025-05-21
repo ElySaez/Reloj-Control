@@ -50,6 +50,10 @@ public class JustificacionService implements IJustificacionService{
         TipoPermiso tipoPermiso = tipoPermisoRepository.findByDescripcion(crearJustificacionDto.getTipoPermiso())
                 .orElseThrow(() -> new EntityNotFoundException("Tipo de permiso no encontrado"));
 
+        if(crearJustificacionDto.getFechaInicio().isAfter(crearJustificacionDto.getFechaTermino())){
+            throw new BadRequestException("La fecha de inicio no puede ser después de la fecha de termino");
+        }
+
         validarSolapamiento(empleado.getIdEmpleado(), crearJustificacionDto.getFechaInicio(), crearJustificacionDto.getFechaTermino());
 
         if(tipoPermiso.getRequiereAdjuntos() && Objects.isNull(crearJustificacionDto.getArchivo())){
