@@ -60,6 +60,13 @@ public class JustificacionService implements IJustificacionService{
 
     @Override
     public Justificacion getById(Long id) {
-        return justificacionRepository.findByIdJustificacion(id);
+        return justificacionRepository.findByIdJustificacion(id).orElseThrow(() -> new EntityNotFoundException("Justificacion no encontrada"));
+    }
+
+    @Override
+    public Justificacion aprobarJustificacion(Long id) {
+        Justificacion justificacion = getById(id);
+        justificacion.setMotivo("APROBADO");
+        return justificacionRepository.save(justificacion);
     }
 }

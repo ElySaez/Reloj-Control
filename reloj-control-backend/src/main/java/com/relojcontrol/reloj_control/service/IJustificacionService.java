@@ -11,4 +11,6 @@ public interface IJustificacionService {
     Justificacion guardarJustificacion(CrearJustificacionDTO crearJustificacionDto);
 
     Justificacion getById(Long id);
+
+    Justificacion aprobarJustificacion(Long id);
 }

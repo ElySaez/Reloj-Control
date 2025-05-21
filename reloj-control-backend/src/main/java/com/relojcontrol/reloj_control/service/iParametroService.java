@@ -1,4 +1,4 @@
 package com.relojcontrol.reloj_control.service;
 
-public interface iParametroServoce {
+public interface iParametroService {
 }

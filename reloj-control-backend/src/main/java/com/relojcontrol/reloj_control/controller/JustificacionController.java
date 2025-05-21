@@ -3,6 +3,7 @@ package com.relojcontrol.reloj_control.controller;
 import com.relojcontrol.reloj_control.dto.CrearJustificacionDTO;
 import com.relojcontrol.reloj_control.dto.JustificacionListadoDTO;
 import com.relojcontrol.reloj_control.model.Justificacion;
+import com.relojcontrol.reloj_control.model.enums.EstadoJustificacionEnum;
 import com.relojcontrol.reloj_control.service.IJustificacionService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -41,5 +42,10 @@ public class JustificacionController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=justificacion-" + id + ".pdf")
                 .body(justificacion.getArchivoAdjunto());
+    }
+
+    @PutMapping("/{id}/")
+    public ResponseEntity<JustificacionListadoDTO> aprobarJustificacion(@PathVariable Long id, @RequestParam("estado") EstadoJustificacionEnum estadoJustificacion) {
+        return ResponseEntity.ok().body(new JustificacionListadoDTO(justificacionService.aprobarJustificacion(id)));
     }
 }
