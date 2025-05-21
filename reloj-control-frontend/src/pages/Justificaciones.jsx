@@ -157,7 +157,7 @@ export default function Justificaciones() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+        <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
             <div id="vista-buscador">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Buscar Justificaciones</h2>
                 <form onSubmit={handleBuscarJustificaciones} className="space-y-4 mb-6">
@@ -199,7 +199,7 @@ export default function Justificaciones() {
                 {justificacionesEncontradas.length > 0 && (
                     <div className="mt-6">
                         <h3 className="text-xl font-semibold text-gray-800 mb-4">Resultados de la Búsqueda</h3>
-                        <div className="overflow-x-auto">
+                        <div>
                             <table className="min-w-full table-auto text-sm text-left text-gray-500">
                                 <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                                     <tr>
