@@ -27,6 +27,9 @@ public class Asistencia {
     @Column(name = "es_oficial")
     private Boolean esOficial;
 
+    @Column(name = "observaciones")
+    private String observaciones;
+
     // Constructor por defecto (requerido por JPA)
     public Asistencia() {}
 
@@ -87,6 +90,12 @@ public class Asistencia {
     }
     public void setEstado(String estado) {
         this.estado = estado;
+    }
+    public String getObservaciones() {
+        return observaciones;
+    }
+    public void setObservaciones(String observaciones) {
+        this.observaciones = observaciones;
     }
 }
 

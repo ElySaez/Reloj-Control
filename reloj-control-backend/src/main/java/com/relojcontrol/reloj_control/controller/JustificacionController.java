@@ -44,8 +44,8 @@ public class JustificacionController {
                 .body(justificacion.getArchivoAdjunto());
     }
 
-    @PutMapping("/{id}/")
-    public ResponseEntity<JustificacionListadoDTO> aprobarJustificacion(@PathVariable Long id, @RequestParam("estado") EstadoJustificacionEnum estadoJustificacion) {
-        return ResponseEntity.ok().body(new JustificacionListadoDTO(justificacionService.aprobarJustificacion(id)));
+    @PutMapping("/{id}")
+    public ResponseEntity<JustificacionListadoDTO> actualizarEstadoJustificacion(@PathVariable Long id, @RequestParam("estado") EstadoJustificacionEnum estadoJustificacion) {
+        return ResponseEntity.ok().body(new JustificacionListadoDTO(justificacionService.actualizarEstadoJustificacion(id, estadoJustificacion)));
     }
 }

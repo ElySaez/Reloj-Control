@@ -8,14 +8,8 @@ import com.relojcontrol.reloj_control.repository.EmpleadoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.*;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -99,6 +93,30 @@ public class AsistenciaService implements IAsistenciaService {
         Asistencia asistencia = new Asistencia(emp, fecha, tipo, esOficial);
 
         return repo.save(asistencia);
+    }
+
+    @Override
+    public void crearAsistenciaEnRangoDeFechasDesdeJustificacion(Empleado empleado, LocalDate fechaInicio, LocalDate fechaTermino, String descripcion) {
+        List<LocalDate> diasJustificados = rangoFechasLaborables(fechaInicio, fechaTermino);
+        diasJustificados.forEach(diaJustificado -> {
+            limpiaOficiales(empleado.getIdEmpleado(), diaJustificado, "ENTRADA");
+            limpiaOficiales(empleado.getIdEmpleado(), diaJustificado, "SALIDA");
+            Asistencia asistenciaEntrada = new Asistencia();
+            asistenciaEntrada.setEmpleado(empleado);
+            asistenciaEntrada.setTipo("ENTRADA");
+            asistenciaEntrada.setFechaHora(diaJustificado.atStartOfDay());
+            asistenciaEntrada.setEsOficial(true);
+            asistenciaEntrada.setObservaciones("Justificado por " + descripcion);
+            repo.save(asistenciaEntrada);
+
+            Asistencia asistenciaSalida = new Asistencia();
+            asistenciaSalida.setEmpleado(empleado);
+            asistenciaSalida.setTipo("SALIDA");
+            asistenciaSalida.setEsOficial(true);
+            asistenciaSalida.setObservaciones("Justificado por " + descripcion);
+            asistenciaSalida.setFechaHora(diaJustificado.atStartOfDay());
+            repo.save(asistenciaSalida);
+        });
     }
 
     /**
@@ -352,6 +370,15 @@ public class AsistenciaService implements IAsistenciaService {
             observaciones.append("Inconsistencia: Salida anterior a entrada. ");
         }
 
+        if (Objects.nonNull(entrada) && Objects.nonNull(entrada.getObservaciones())) {
+            observaciones.append("Entrada: ").append(entrada.getObservaciones()).append(". ");
+        }
+
+        if (Objects.nonNull(salida) && Objects.nonNull(salida.getObservaciones())) {
+            observaciones.append("Salida: ").append(salida.getObservaciones());
+        }
+
+
         dto.setObservaciones(observaciones.toString().trim());
 
         resumen.add(dto);
@@ -449,5 +476,49 @@ public class AsistenciaService implements IAsistenciaService {
         Asistencia asistencia = asistencias.get(0);
 
         return actualizarEsOficialDeUnaAsistencia(asistencia.getId(), true);
+    }
+
+    /**
+     * Devuelve una lista inmutable de fechas hábiles entre {@code inicio} y
+     * {@code finInclusive}, excluyendo sábados, domingos y los días feriados
+     * especificados.
+     *
+     * @param inicio       fecha inicial (no nula)
+     * @param finInclusive fecha final incluida en el resultado (no nula)
+     * @return List<LocalDate> inmutable con el rango de días hábiles
+     * @throws IllegalArgumentException si {@code inicio} es posterior a {@code finInclusive}
+     */
+    public List<LocalDate> rangoFechasLaborables(
+            LocalDate inicio,
+            LocalDate finInclusive) {
+
+        if (inicio.isAfter(finInclusive)) {
+            throw new IllegalArgumentException(
+                    "La fecha de inicio (" + inicio +
+                            ") no puede ser posterior a la fecha final (" + finInclusive + ").");
+        }
+
+        return inicio
+                // plusDays(1) para incluir finInclusive en el flujo
+                .datesUntil(finInclusive.plusDays(1))
+                // filtrar fines de semana
+                .filter(d -> {
+                    DayOfWeek dw = d.getDayOfWeek();
+                    return dw != DayOfWeek.SATURDAY && dw != DayOfWeek.SUNDAY;
+                })
+                // filtrar feriados
+                .filter(d -> !feriadoSvc.esFeriado(d))
+                // colecciona en lista inmutable (Java 21+)
+                .toList();
+    }
+
+    private void limpiaOficiales(Long empleadoId, LocalDate fecha, String tipo){
+        if(repo.existsAsistenciaOficialEnFecha(empleadoId, fecha, tipo)){
+            repo.findAsistenciaOficialEnFecha(empleadoId, fecha, tipo)
+                    .ifPresent(marca -> {
+                        marca.setEsOficial(false);
+                        repo.save(marca);
+                    });
+        }
     }
 }
