@@ -76,15 +76,21 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
 
     boolean existsByEmpleadoIdEmpleadoAndFechaHora(Long idEmpleado, LocalDateTime fechaHora);
 
-    @Query(value = "SELECT a.id, a.empleado_id, a.es_oficial, a.estado, a.fecha_hora, a.tipo " + // Lista explícitamente las columnas de tu entidad
-            "FROM asistencias a " + // Usa el nombre real de tu tabla
-            "WHERE CAST(a.fecha_hora AS DATE) >= :fechaInicio " + // Usa el nombre real de tu columna timestamp
-            "AND CAST(a.fecha_hora AS DATE) <= :fechaFin " +
-            "AND CAST(a.fecha_hora AS TIME) > :horaLimite",
-            nativeQuery = true)
+    @Query(value = """
+    SELECT a.id,
+           a.empleado_id,
+           a.es_oficial,
+           a.estado,
+           a.fecha_hora,
+           a.tipo,
+           a.observaciones     -- <-- ¡añadido!
+      FROM asistencias a
+     WHERE CAST(a.fecha_hora AS DATE) BETWEEN :inicio AND :fin
+       AND CAST(a.fecha_hora AS TIME) > :horaLimite
+    """, nativeQuery = true)
     List<Asistencia> findAsistenciasEnRangoFechasYDespuesDeHoraLimiteNativa(
-            @Param("fechaInicio") LocalDate fechaInicio,
-            @Param("fechaFin") LocalDate fechaFin,
+            @Param("inicio") LocalDate inicio,
+            @Param("fin")    LocalDate fin,
             @Param("horaLimite") LocalTime horaLimite
     );
 

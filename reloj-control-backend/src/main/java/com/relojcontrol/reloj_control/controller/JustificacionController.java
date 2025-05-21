@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,11 +25,17 @@ public class JustificacionController {
     }
 
     @GetMapping("/empleado/{rutEmpleado}")
+    @PreAuthorize(
+            "hasRole('ADMIN') or #rutEmpleado == authentication.principal.username"
+    )
     public List<JustificacionListadoDTO> listar(@PathVariable String rutEmpleado) {
         return justificacionService.listar(rutEmpleado).stream().map(JustificacionListadoDTO::new).toList();
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize(
+            "hasRole('ADMIN') or @securityHelper.isEmpleadoOwner(authentication.name, #crearJustificacionDto.rutEmpleado)"
+    )
     public ResponseEntity<Justificacion> crear(@ModelAttribute CrearJustificacionDTO crearJustificacionDto) {
         Justificacion justificacion = justificacionService.guardarJustificacion(crearJustificacionDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(justificacion);
@@ -36,6 +43,9 @@ public class JustificacionController {
 
 
     @GetMapping("/{id}/archivo")
+    @PreAuthorize(
+            "hasRole('ADMIN') or @securityHelper.isJustificacionOwner(authentication.name, #id)"
+    )
     public ResponseEntity<byte[]> descargar(@PathVariable Long id) {
         Justificacion justificacion = justificacionService.getById(id);
         return ResponseEntity.ok()
@@ -45,6 +55,9 @@ public class JustificacionController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<JustificacionListadoDTO> actualizarEstadoJustificacion(@PathVariable Long id, @RequestParam("estado") EstadoJustificacionEnum estadoJustificacion) {
         return ResponseEntity.ok().body(new JustificacionListadoDTO(justificacionService.actualizarEstadoJustificacion(id, estadoJustificacion)));
     }
