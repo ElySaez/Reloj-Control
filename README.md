@@ -72,4 +72,4 @@ El frontend estará disponible en `http://localhost:5173`
 - TailwindCSS
 - React Router DOM
 - Axios 
->>>>>>> 1e7db86 (Agregando readme.md)
+
