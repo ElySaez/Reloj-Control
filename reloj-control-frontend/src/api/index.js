@@ -1,10 +1,43 @@
 export const API_URL = '/api'
 
-// Función básica para realizar peticiones GET
-const hacerPeticionGet = async (url) => {
-    const response = await fetch(url);
+// Función auxiliar para obtener el token
+const getToken = () => localStorage.getItem('token');
+
+// Función para formatear las fechas para asegurar que tienen el formato YYYY-MM-DD
+const formatearFecha = (fecha) => {
+    if (!fecha) return undefined;
+    
+    // Si ya es un string con formato yyyy-MM-dd, devolverlo tal cual
+    if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        return fecha;
+    }
+    
+    try {
+        // Intentar convertir a fecha válida
+        const dateObj = new Date(fecha);
+        if (isNaN(dateObj.getTime())) {
+            throw new Error(`Fecha inválida: ${fecha}`);
+        }
+        return dateObj.toISOString().split('T')[0]; // Formato yyyy-MM-dd
+    } catch (e) {
+        console.error("Error al formatear fecha:", e);
+        throw new Error(`Formato de fecha inválido: ${fecha}`);
+    }
+};
+
+// Función básica para realizar peticiones GET, ahora con token
+const hacerPeticionGet = async (urlPath, includeAuth = true) => {
+    const token = getToken();
+    const headers = {
+        'Accept': 'application/json',
+    };
+    if (includeAuth && token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(`${API_URL}${urlPath}`, { headers });
     if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(errorText || `Error HTTP: ${response.status}`);
     }
     return response.json();
 };
@@ -16,71 +49,24 @@ export const getResumen = async (fechaInicio, fechaFin, rut) => {
             throw new Error('La fecha de inicio es requerida');
         }
 
-        // Formatear las fechas para asegurar que tienen el formato YYYY-MM-DD
-        const formatearFecha = (fecha) => {
-            if (!fecha) return undefined;
-            
-            // Si ya es un string con formato yyyy-MM-dd, devolverlo tal cual
-            if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-                return fecha;
-            }
-            
-            try {
-                // Intentar convertir a fecha válida
-                const dateObj = new Date(fecha);
-                if (isNaN(dateObj.getTime())) {
-                    throw new Error(`Fecha inválida: ${fecha}`);
-                }
-                return dateObj.toISOString().split('T')[0]; // Formato yyyy-MM-dd
-            } catch (e) {
-                console.error("Error al formatear fecha:", e);
-                throw new Error(`Formato de fecha inválido: ${fecha}`);
-            }
-        };
-
-        // Formatear fechas
+        // Formatear fechas usando la función global
         const inicioFormateado = formatearFecha(fechaInicio);
         const finFormateado = fechaFin ? formatearFecha(fechaFin) : undefined;
 
         // Construir URL con los parámetros encodificados correctamente
-        let url = `${API_URL}/asistencias/resumen?inicio=${encodeURIComponent(inicioFormateado)}`;
+        let queryString = `?inicio=${encodeURIComponent(inicioFormateado)}`;
         
         if (finFormateado) {
-            url += `&fin=${encodeURIComponent(finFormateado)}`;
+            queryString += `&fin=${encodeURIComponent(finFormateado)}`;
         }
         
         if (rut) {
-            url += `&rut=${encodeURIComponent(rut)}`;
+            queryString += `&rut=${encodeURIComponent(rut)}`;
         }
 
-        console.log('URL de petición:', url);
+        console.log('URL de petición getResumen:', `${API_URL}/asistencias/resumen${queryString}`);
         
-        // Realizar la petición con el API nativo fetch
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Verificar el tipo de respuesta
-        if (Array.isArray(data)) {
-            // Si es un array, devolverlo directamente (respuesta normal)
-            return data;
-        } else if (typeof data === 'object' && data !== null) {
-            // Si es un objeto (posiblemente con mensaje y data), devolverlo tal cual
-            return data;
-        }
-        
-        // Si no es ni array ni objeto, convertir a array vacío por defecto
-        return [];
+        return hacerPeticionGet(`/asistencias/resumen${queryString}`);
         
     } catch (error) {
         console.error('Error en getResumen:', error);
@@ -110,40 +96,15 @@ export const getResumenMensual = async (mes, año, rut) => {
         }
         
         // Construir URL con los parámetros
-        let url = `${API_URL}/asistencias/resumen/mensual?mes=${mesNum}&año=${añoNum}`;
+        let queryString = `?mes=${mesNum}&año=${añoNum}`;
         
         if (rut) {
-            url += `&rut=${encodeURIComponent(rut)}`;
+            queryString += `&rut=${encodeURIComponent(rut)}`;
         }
         
-        console.log('URL de petición resumen mensual:', url);
+        console.log('URL de petición resumen mensual:', `${API_URL}/asistencias/resumen/mensual${queryString}`);
         
-        // Realizar la petición con el API nativo fetch
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Verificar el tipo de respuesta
-        if (Array.isArray(data)) {
-            // Si es un array, devolverlo directamente (respuesta normal)
-            return data;
-        } else if (typeof data === 'object' && data !== null) {
-            // Si es un objeto (posiblemente con mensaje y data), devolverlo tal cual
-            return data;
-        }
-        
-        // Si no es ni array ni objeto, convertir a array vacío por defecto
-        return [];
+        return hacerPeticionGet(`/asistencias/resumen/mensual${queryString}`);
         
     } catch (error) {
         console.error('Error en getResumenMensual:', error);
@@ -179,116 +140,108 @@ const formatearFechaSinZonaHoraria = (fecha) => {
 
 // Actualizar la función marcarAsistencia para aceptar una fecha específica
 export const marcarAsistencia = async (empleadoId, tipo, fecha = null) => {
-    try {
-        const params = new URLSearchParams()
-        params.append('empleadoId', empleadoId)
-        params.append('tipo', tipo)
+    const token = getToken();
+    const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const params = new URLSearchParams()
+    params.append('empleadoId', empleadoId)
+    params.append('tipo', tipo)
+    
+    // Si se proporciona una fecha, incluirla en la petición
+    if (fecha) {
+        let fechaFormateada = null;
         
-        // Si se proporciona una fecha, incluirla en la petición
-        if (fecha) {
-            let fechaFormateada = null;
-            
-            // Para un valor datetime-local (formato: YYYY-MM-DDThh:mm) o cualquier otro formato de fecha
-            try {
-                // Si solo se proporciona una hora HH:MM
-                if (typeof fecha === 'string' && /^\d{2}:\d{2}$/.test(fecha)) {
-                    // Obtener la fecha actual
-                    const hoy = new Date();
-                    const [horas, minutos] = fecha.split(':').map(Number);
-                    
-                    // Crear una fecha con la hora proporcionada
-                    hoy.setHours(horas, minutos, 0, 0);
-                    fechaFormateada = formatearFechaSinZonaHoraria(hoy);
-                } 
-                // Para valores datetime-local o cualquier otra fecha
-                else {
-                    // Si ya es una cadena con formato YYYY-MM-DDThh:mm, añadir los segundos y milisegundos
-                    if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fecha)) {
-                        fechaFormateada = `${fecha}:00.000`;
-                    } else {
-                        // Cualquier otro formato, intentar convertir
-                        fechaFormateada = formatearFechaSinZonaHoraria(fecha);
-                    }
+        // Para un valor datetime-local (formato: YYYY-MM-DDThh:mm) o cualquier otro formato de fecha
+        try {
+            // Si solo se proporciona una hora HH:MM
+            if (typeof fecha === 'string' && /^\d{2}:\d{2}$/.test(fecha)) {
+                // Obtener la fecha actual
+                const hoy = new Date();
+                const [horas, minutos] = fecha.split(':').map(Number);
+                
+                // Crear una fecha con la hora proporcionada
+                hoy.setHours(horas, minutos, 0, 0);
+                fechaFormateada = formatearFechaSinZonaHoraria(hoy);
+            } 
+            // Para valores datetime-local o cualquier otra fecha
+            else {
+                // Si ya es una cadena con formato YYYY-MM-DDThh:mm, añadir los segundos y milisegundos
+                if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fecha)) {
+                    fechaFormateada = `${fecha}:00.000`;
+                } else {
+                    // Cualquier otro formato, intentar convertir
+                    fechaFormateada = formatearFechaSinZonaHoraria(fecha);
                 }
-            } catch (e) {
-                console.error('Error al formatear fecha:', e);
-                throw new Error(`Formato de fecha inválido: ${fecha}`);
             }
-            
-            if (fechaFormateada) {
-                console.log('Fecha formateada:', fechaFormateada);
-                params.append('fecha', fechaFormateada);
-            }
+        } catch (e) {
+            console.error('Error al formatear fecha:', e);
+            throw new Error(`Formato de fecha inválido: ${fecha}`);
         }
-
-        console.log('Enviando parámetros:', params.toString());
-
-        const response = await fetch(`${API_URL}/asistencias`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: params.toString()
-        })
-
-        if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`)
+        
+        if (fechaFormateada) {
+            console.log('Fecha formateada:', fechaFormateada);
+            params.append('fecha', fechaFormateada);
         }
-
-        return await response.json()
-    } catch (error) {
-        console.error('Error en marcarAsistencia:', error)
-        throw error
     }
+
+    console.log('Enviando parámetros:', params.toString());
+
+    const response = await fetch(`${API_URL}/asistencias`, {
+        method: 'POST',
+        headers,
+        body: params.toString()
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Error ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
 }
 
 export const importarArchivo = async (file) => {
-    try {
-        const formData = new FormData()
-        formData.append('file', file)
+    const token = getToken();
+    const headers = {}; // FormData se encarga del Content-Type
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const response = await fetch(`${API_URL}/importar`, {
-            method: 'POST',
-            body: formData
-        })
+    const formData = new FormData()
+    formData.append('file', file)
 
-        if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`)
-        }
+    const response = await fetch(`${API_URL}/importar`, {
+        method: 'POST',
+        headers,
+        body: formData
+    })
 
-        return await response.json()
-    } catch (error) {
-        console.error('Error en importarArchivo:', error)
-        throw error
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Error ${response.status}: ${response.statusText}`)
     }
+
+    return await response.json()
 }
 
 // Función para actualizar el estado de una asistencia
 export const actualizarEstadoAsistencia = async (id, estado) => {
-    try {
-        const url = `${API_URL}/asistencias/estado/${id}?estado=${encodeURIComponent(estado)}`;
-        
-        console.log('Actualizando estado:', url);
-        
-        const response = await fetch(url, {
-            method: 'PUT',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.text();
-    } catch (error) {
-        console.error("Error al actualizar el estado de la asistencia:", error);
-        throw error;
+    const token = getToken();
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_URL}/asistencias/estado/${id}?estado=${encodeURIComponent(estado)}`, {
+        method: 'PUT',
+        headers
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
     }
+    
+    return await response.text();
 };
 
 // Función para obtener las marcas originales de un día específico
@@ -323,28 +276,15 @@ export const getMarcasPorFecha = async (fecha, rut) => {
         const fechaFormateada = formatearFecha(fecha);
         
         // Construir URL con los parámetros
-        let url = `${API_URL}/asistencias/marcas?fecha=${encodeURIComponent(fechaFormateada)}`;
+        let queryString = `/asistencias/marcas?fecha=${encodeURIComponent(fechaFormateada)}`;
         
         if (rut) {
-            url += `&rut=${encodeURIComponent(rut)}`;
+            queryString += `&rut=${encodeURIComponent(rut)}`;
         }
         
-        console.log('URL de petición para obtener marcas:', url);
+        console.log('URL de petición para obtener marcas:', queryString);
         
-        // Realizar la petición
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
+        return hacerPeticionGet(queryString);
         
     } catch (error) {
         console.error('Error en getMarcasPorFecha:', error);
@@ -355,60 +295,24 @@ export const getMarcasPorFecha = async (fecha, rut) => {
 // Función para obtener marcas de un empleado por RUT y rango de fechas
 export const getMarcasPorEmpleadoYFechas = async (rut, fechaInicio, fechaFin = null) => {
     try {
-        if (!rut) {
-            throw new Error('El RUT del empleado es requerido');
-        }
-        
-        if (!fechaInicio) {
-            throw new Error('La fecha de inicio es requerida');
+        if (!rut || !fechaInicio) {
+            throw new Error('El RUT del empleado y la fecha de inicio son obligatorios.');
         }
 
-        // Formatear las fechas para asegurar formato YYYY-MM-DD
-        const formatearFecha = (fecha) => {
-            if (!fecha) return undefined;
-            
-            if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-                return fecha;
-            }
-            
-            try {
-                const dateObj = new Date(fecha);
-                if (isNaN(dateObj.getTime())) {
-                    throw new Error(`Fecha inválida: ${fecha}`);
-                }
-                return dateObj.toISOString().split('T')[0];
-            } catch (e) {
-                console.error("Error al formatear fecha:", e);
-                throw new Error(`Formato de fecha inválido: ${fecha}`);
-            }
-        };
-
+        // Formatear fechas usando la función global
         const inicioFormateado = formatearFecha(fechaInicio);
         const finFormateado = fechaFin ? formatearFecha(fechaFin) : undefined;
         
         // Construir URL con los parámetros
-        let url = `${API_URL}/asistencias/marcas/empleado?rut=${encodeURIComponent(rut)}&fechaInicio=${encodeURIComponent(inicioFormateado)}`;
+        let queryString = `/asistencias/marcas/empleado?rut=${encodeURIComponent(rut)}&fechaInicio=${encodeURIComponent(inicioFormateado)}`;
         
         if (finFormateado) {
-            url += `&fechaFin=${encodeURIComponent(finFormateado)}`;
+            queryString += `&fechaFin=${encodeURIComponent(finFormateado)}`;
         }
         
-        console.log('URL de petición para obtener marcas por empleado:', url);
+        console.log('URL de petición para obtener marcas por empleado:', queryString);
         
-        // Realizar la petición
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `Error ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
+        return hacerPeticionGet(queryString);
         
     } catch (error) {
         console.error('Error en getMarcasPorEmpleadoYFechas:', error);
@@ -418,86 +322,107 @@ export const getMarcasPorEmpleadoYFechas = async (rut, fechaInicio, fechaFin = n
 
 // Nueva función para crear una justificación
 export const crearJustificacion = async (formData) => {
-    try {
-        const response = await fetch(`${API_URL}/justificaciones`, {
-            method: 'POST',
-            body: formData, 
-        });
+    const token = getToken();
+    const headers = {}; // FormData se encarga del Content-Type
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => null); 
-            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
-            const error = new Error(errorMessage);
-            error.response = {
-                status: response.status,
-                data: errorData || { message: errorMessage }, 
-            };
-            throw error;
-        }
+    const response = await fetch(`${API_URL}/justificaciones`, {
+        method: 'POST',
+        headers,
+        body: formData, 
+    });
 
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-            return response.json(); 
-        }
-        return { success: true, message: 'Justificación creada exitosamente' };
-
-    } catch (error) {
-        console.error('Error en crearJustificacion:', error);
-        throw error; 
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null); 
+        const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
+        const error = new Error(errorMessage);
+        error.response = {
+            status: response.status,
+            data: errorData || { message: errorMessage }, 
+        };
+        throw error;
     }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+        return response.json(); 
+    }
+    return { success: true, message: 'Justificación creada exitosamente' };
 };
 
 export const getJustificacionesPorRutEmpleado = async (rutEmpleado) => {
-    try {
-        if (!rutEmpleado || typeof rutEmpleado !== 'string' || rutEmpleado.trim() === '') {
-            throw new Error('El RUT del empleado es requerido para la búsqueda.');
-        }
-        const response = await fetch(`${API_URL}/justificaciones/empleado/${encodeURIComponent(rutEmpleado.trim())}`);
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
-            const error = new Error(errorMessage);
-            error.response = {
-                status: response.status,
-                data: errorData || { message: errorMessage },
-            };
-            throw error;
-        }
-        return response.json();
-    } catch (error) {
-        console.error('Error en getJustificacionesPorRutEmpleado:', error);
-        throw error;
-    }
+    return hacerPeticionGet(`/justificaciones/empleado/${encodeURIComponent(rutEmpleado.trim())}`);
 };
 
 // Nueva función para actualizar el estado de una justificación
 export const actualizarEstadoJustificacion = async (idJustificacion, nuevoEstado) => {
-    try {
-        const response = await fetch(`${API_URL}/justificaciones/${idJustificacion}?estado=${nuevoEstado}`, {
-            method: 'PUT',
-            headers: {
-                'Accept': 'application/json',
-                // Content-Type no es necesario para PUT sin body, pero si el backend lo requiere estrictamente para CORS o algo, se podría añadir application/json
-            },
-        });
+    const token = getToken();
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
-            const error = new Error(errorMessage);
-            error.response = {
-                status: response.status,
-                data: errorData || { message: errorMessage },
-            };
-            throw error;
+    const response = await fetch(`${API_URL}/justificaciones/${idJustificacion}?estado=${nuevoEstado}`, {
+        method: 'PUT',
+        headers,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
+        const error = new Error(errorMessage);
+        error.response = {
+            status: response.status,
+            data: errorData || { message: errorMessage },
+        };
+        throw error;
+    }
+
+    // El backend devuelve la justificación actualizada
+    return response.json(); 
+};
+
+// --- Funciones para Parámetros (ahora protegidas) ---
+export const fetchParametrosAPI = async () => { // Renombrada para claridad
+    return hacerPeticionGet('/parametros');
+};
+
+export const saveParametrosAPI = async (parametrosParaEnviar) => { // Renombrada para claridad
+    const token = getToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_URL}/parametros`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(parametrosParaEnviar),
+    });
+    if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Error al guardar los parámetros: ${response.status} ${errorData || ''}`);
+    }
+    return response.json(); 
+};
+
+//Atrasos
+export const getAtrasos = async (fechaInicio, fechaFin, horario) => {
+    try {
+        if (!fechaInicio || !horario) {
+            throw new Error('La fecha de inicio y el horario son requeridos para obtener los atrasos.');
         }
 
-        // El backend devuelve la justificación actualizada
-        return response.json(); 
+        // Formatear fechas usando la función global
+        const inicioFormateado = formatearFecha(fechaInicio);
+        const finFormateado = fechaFin ? formatearFecha(fechaFin) : undefined;
 
+        // Corregir nombres de parámetros para que coincidan con el backend
+        let queryString = `?inicio=${encodeURIComponent(inicioFormateado)}&horario=${encodeURIComponent(horario)}`;
+        if (finFormateado) {
+            queryString += `&fin=${encodeURIComponent(finFormateado)}`;
+        }
+        
+        console.log('URL de petición getAtrasos:', `${API_URL}/asistencias/resumen/atrasos${queryString}`);
+        return hacerPeticionGet(`/asistencias/resumen/atrasos${queryString}`);
     } catch (error) {
-        console.error('Error en actualizarEstadoJustificacion:', error);
+        console.error('Error en getAtrasos:', error);
         throw error;
     }
 }; 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { fetchParametrosAPI, saveParametrosAPI } from '../api'; // Usar las nuevas funciones de API
 
 // Ya no usaremos initialParametros, se cargarán desde la API
 // const initialParametros = [
@@ -13,17 +14,11 @@ export default function Configuraciones() {
     const [successMessage, setSuccessMessage] = useState('');
 
     useEffect(() => {
-      const fetchParametros = async () => {
+      const loadParametros = async () => {
         setLoading(true);
         setError(null);
         try {
-          const response = await fetch('/api/parametros'); 
-          if (!response.ok) {
-            const errorData = await response.text();
-            throw new Error(`No se pudieron cargar los parámetros: ${response.status} ${errorData || ''}`);
-          }
-          const data = await response.json();
-          // Asegurarse de que el valor sea string para consistencia con el input
+          const data = await fetchParametrosAPI(); // Usar la función de api/index.js
           setParametros(data.map(p => ({ ...p, valor: String(p.valor) }))); 
         } catch (err) {
           setError(err.message);
@@ -32,7 +27,7 @@ export default function Configuraciones() {
           setLoading(false);
         }
       };
-      fetchParametros();
+      loadParametros();
     }, []);
 
     const handleChange = (id, nuevoValor) => {
@@ -58,26 +53,15 @@ export default function Configuraciones() {
         setLoading(true);
         setSuccessMessage('');
 
-        // Ajustar el mapeo aquí: el estado interno usa idParametro (del GET)
-        // pero el POST espera "id".
         const parametrosParaEnviar = parametros.map(p => ({
-            id: p.idParametro, // Mapear idParametro del estado a "id" para el POST
+            id: p.idParametro,
             valor: p.valor, 
             clave: p.clave 
         }));
 
         try {
-          const response = await fetch('/api/parametros', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parametrosParaEnviar),
-          });
-          if (!response.ok) {
-            const errorData = await response.text();
-            throw new Error(`Error al guardar los parámetros: ${response.status} ${errorData || ''}`);
-          }
-          const result = await response.json(); // El backend devuelve la lista actualizada
-          setParametros(result.map(p => ({ ...p, valor: String(p.valor) }))); // Actualizar con los datos del backend
+          const result = await saveParametrosAPI(parametrosParaEnviar); // Usar la función de api/index.js
+          setParametros(result.map(p => ({ ...p, valor: String(p.valor) }))); 
           setSuccessMessage('¡Parámetros guardados con éxito!');
         } catch (err) {
           setError(err.message);

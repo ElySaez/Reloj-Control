@@ -21,15 +21,57 @@ export default function Justificaciones() {
     const [errorBusqueda, setErrorBusqueda] = useState('')
     const [mensajeBusqueda, setMensajeBusqueda] = useState('')
     const [loadingAccion, setLoadingAccion] = useState(null)
+    const [loadingDescarga, setLoadingDescarga] = useState(null);
+
+    // Obtener rol y RUN del usuario para lógica condicional
+    const userRole = localStorage.getItem('userRole');
+    const loggedInUserRun = localStorage.getItem('run');
+
+    useEffect(() => {
+        // Si es ROLE_USER y tenemos su RUN, lo establecemos en el estado 'rutBusqueda' para la búsqueda.
+        if (userRole === 'ROLE_USER' && loggedInUserRun) {
+            setRutBusqueda(loggedInUserRun);
+        }
+    }, []); // Solo al montar
 
     const abrirModalSolicitud = () => {
         setMensajeFormulario('')
+        // Si es ROLE_USER, pre-cargar su RUN en el formulario del modal
+        if (userRole === 'ROLE_USER' && loggedInUserRun) {
+            setFormData(prev => ({
+                ...prev,
+                rutEmpleado: loggedInUserRun,
+                // Resetear otros campos si es necesario al abrir
+                tipoPermiso: '',
+                fechaInicio: '',
+                fechaTermino: '',
+                motivo: ''
+            }));
+        } else {
+            // Para otros roles, o si no hay RUN, resetear el campo RUT también
+            setFormData({
+                rutEmpleado: '',
+                tipoPermiso: '',
+                fechaInicio: '',
+                fechaTermino: '',
+                motivo: ''
+            });
+        }
+        setArchivo(null); // Resetear archivo siempre
+        if (document.getElementById('archivo-inputForm')) {
+            document.getElementById('archivo-inputForm').value = ''
+        }
         setShowSolicitudModal(true)
     }
 
     const cerrarModalSolicitud = () => {
         setShowSolicitudModal(false)
         setMensajeFormulario('')
+        // Si había un RUT buscado (o es ROLE_USER con su RUT cargado),
+        // refrescar la lista de justificaciones.
+        if (rutBusqueda.trim() !== '') {
+            handleBuscarJustificaciones();
+        }
     }
 
     const handleSubmitNuevaJustificacion = async (e) => {
@@ -91,7 +133,7 @@ export default function Justificaciones() {
     }
 
     const handleBuscarJustificaciones = async (e) => {
-        e.preventDefault()
+        if (e) e.preventDefault(); // Prevenir default solo si es llamado por un evento de formulario
         if (!rutBusqueda.trim()) {
             setErrorBusqueda('Por favor, ingrese un RUT para buscar.')
             setJustificacionesEncontradas([])
@@ -118,6 +160,14 @@ export default function Justificaciones() {
         }
     }
 
+    useEffect(() => {
+        // Carga automática de justificaciones para ROLE_USER cuando rutBusqueda (ya seteado con su RUN) está listo.
+        if (userRole === 'ROLE_USER' && rutBusqueda === loggedInUserRun && rutBusqueda.trim() !== '') {
+            handleBuscarJustificaciones(); // No pasamos 'e' ya que no es un evento de formulario
+        }
+        // Para otros roles, la búsqueda es manual a través del botón.
+    }, [rutBusqueda, userRole, loggedInUserRun]); // Dependencias clave
+
     const handleActualizarEstado = async (idJustificacion, nuevoEstado) => {
         setLoadingAccion(idJustificacion + '-' + nuevoEstado)
         setErrorBusqueda('')
@@ -141,6 +191,51 @@ export default function Justificaciones() {
             setLoadingAccion(null)
         }
     }
+
+    const handleDescargarArchivo = async (idJustificacion, nombreArchivoSugerido = 'archivo_adjunto') => {
+        setLoadingDescarga(idJustificacion);
+        setErrorBusqueda(''); // Limpiar errores previos
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/justificaciones/${idJustificacion}/archivo`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Error del servidor: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            let fileName = nombreArchivoSugerido;
+            const disposition = response.headers.get('content-disposition');
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    fileName = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            console.error("Error al descargar archivo:", error);
+            setErrorBusqueda(`Error al descargar archivo: ${error.message}`);
+        } finally {
+            setLoadingDescarga(null);
+        }
+    };
 
     const modalBackdropStyle = {
         position: 'fixed',
@@ -170,19 +265,21 @@ export default function Justificaciones() {
                             type="text"
                             name="rutBusqueda"
                             value={rutBusqueda}
-                            onChange={(e) => setRutBusqueda(e.target.value)}
+                            onChange={(e) => userRole !== 'ROLE_USER' && setRutBusqueda(e.target.value)}
                             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                             placeholder="Ingrese RUT para buscar"
-                            disabled={loadingBusqueda}
+                            disabled={loadingBusqueda || userRole === 'ROLE_USER'}
                         />
                     </div>
-                    <button
-                        type="submit"
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full sm:w-auto disabled:bg-blue-300"
-                        disabled={loadingBusqueda}
-                    >
-                        {loadingBusqueda ? 'Buscando...' : 'Buscar'}
-                    </button>
+                    {userRole !== 'ROLE_USER' && (
+                        <button
+                            type="submit"
+                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full sm:w-auto disabled:bg-blue-300"
+                            disabled={loadingBusqueda}
+                        >
+                            {loadingBusqueda ? 'Buscando...' : 'Buscar'}
+                        </button>
+                    )}
                 </form>
 
                 {errorBusqueda && (
@@ -210,7 +307,7 @@ export default function Justificaciones() {
                                         <th scope="col" className="px-6 py-3">Motivo</th>
                                         <th scope="col" className="px-6 py-3">Estado</th>
                                         <th scope="col" className="px-6 py-3">Archivo</th>
-                                        <th scope="col" className="px-6 py-3">Acciones</th>
+                                        {userRole !== 'ROLE_USER' && <th scope="col" className="px-6 py-3">Acciones</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -224,55 +321,60 @@ export default function Justificaciones() {
                                             <td className="px-6 py-4">{just.estado || 'N/A'}</td>
                                             <td className="px-6 py-4">
                                                 {just.archivo ? (
-                                                    <a 
-                                                        href={`${API_URL}/justificaciones/${just.idJustificacion}/archivo`} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="font-medium text-blue-600 hover:underline flex items-center"
+                                                    <button 
+                                                        onClick={() => handleDescargarArchivo(just.idJustificacion, `justificacion_${just.idJustificacion}_${just.rutEmpleado || 'archivo'}`)}
+                                                        className="font-medium text-blue-600 hover:underline flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                                                         title="Descargar archivo adjunto"
+                                                        disabled={loadingDescarga === just.idJustificacion}
                                                     >
-                                                        <span role="img" aria-label="Descargar archivo" style={{ fontSize: '1.2em' }}>📥</span>
-                                                    </a>
+                                                        {loadingDescarga === just.idJustificacion ? (
+                                                            <div className="spinner-border spinner-border-sm text-blue-600" role="status"><span className="visually-hidden">Descargando...</span></div>
+                                                        ) : (
+                                                            <span role="img" aria-label="Descargar archivo" style={{ fontSize: '1.2em' }}>📥</span>
+                                                        )}
+                                                    </button>
                                                 ) : (
                                                     '-'
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                {just.estado === 'Pendiente' ? (
-                                                    <div className="flex items-center space-x-2">
-                                                        {loadingAccion === (just.idJustificacion + '-APROBADO') ? (
-                                                            <div className="spinner-border spinner-border-sm text-success" role="status"><span className="visually-hidden">Cargando...</span></div>
-                                                        ) : (
-                                                            <button 
-                                                                onClick={() => handleActualizarEstado(just.idJustificacion, 'APROBADO')}
-                                                                className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
-                                                                title="Aprobar justificación"
-                                                                disabled={loadingAccion !== null}
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                        {loadingAccion === (just.idJustificacion + '-RECHAZADO') ? (
-                                                            <div className="spinner-border spinner-border-sm text-danger" role="status"><span className="visually-hidden">Cargando...</span></div>
-                                                        ) : (
-                                                            <button 
-                                                                onClick={() => handleActualizarEstado(just.idJustificacion, 'RECHAZADO')}
-                                                                className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
-                                                                title="Rechazar justificación"
-                                                                disabled={loadingAccion !== null}
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    '-'
-                                                )}
-                                            </td>
+                                            {userRole !== 'ROLE_USER' && (
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    {just.estado === 'Pendiente' ? (
+                                                        <div className="flex items-center space-x-2">
+                                                            {loadingAccion === (just.idJustificacion + '-APROBADO') ? (
+                                                                <div className="spinner-border spinner-border-sm text-success" role="status"><span className="visually-hidden">Cargando...</span></div>
+                                                            ) : (
+                                                                <button 
+                                                                    onClick={() => handleActualizarEstado(just.idJustificacion, 'APROBADO')}
+                                                                    className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
+                                                                    title="Aprobar justificación"
+                                                                    disabled={loadingAccion !== null}
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                            {loadingAccion === (just.idJustificacion + '-RECHAZADO') ? (
+                                                                <div className="spinner-border spinner-border-sm text-danger" role="status"><span className="visually-hidden">Cargando...</span></div>
+                                                            ) : (
+                                                                <button 
+                                                                    onClick={() => handleActualizarEstado(just.idJustificacion, 'RECHAZADO')}
+                                                                    className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
+                                                                    title="Rechazar justificación"
+                                                                    disabled={loadingAccion !== null}
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -315,7 +417,7 @@ export default function Justificaciones() {
                                                 onChange={handleChangeFormulario}
                                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                                                 required
-                                                disabled={loadingFormulario}
+                                                disabled={loadingFormulario || userRole === 'ROLE_USER'}
                                                 placeholder="Ej: 12345678-9"
                                             />
                                         </div>
@@ -401,6 +503,7 @@ export default function Justificaciones() {
                                                 onChange={handleChangeFormulario}
                                                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                                 disabled={loadingFormulario}
+                                                accept=".pdf,.docx"
                                             />
                                         </div>
 

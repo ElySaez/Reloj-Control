@@ -43,6 +43,18 @@ export default function Resumen() {
     const [totalGeneral25, setTotalGeneral25] = useState(0);
     const [totalGeneral50, setTotalGeneral50] = useState(0);
 
+    // Obtener rol y RUN del usuario para lógica condicional
+    const userRole = localStorage.getItem('userRole');
+    const loggedInUserRun = localStorage.getItem('run');
+
+    useEffect(() => {
+        // Si es ROLE_USER y tenemos su RUN, lo establecemos en el estado 'rut'.
+        // Esto solo se hace una vez al montar el componente.
+        if (userRole === 'ROLE_USER' && loggedInUserRun) {
+            setRut(loggedInUserRun);
+        }
+    }, []); // Array de dependencias vacío para que se ejecute solo al montar
+
     const formatearTiempo = useCallback((minutos) => {
         if (minutos === undefined || minutos === null || isNaN(minutos)) return '00:00:00';
         if (minutos === 0) return '00:00:00';
@@ -183,7 +195,9 @@ export default function Resumen() {
         e.preventDefault();
         
         // Verificar que el RUT tenga al menos 4 caracteres si no está vacío
-        if (rut && !validarRutMinimo(rut)) {
+        // Esta validación no aplicará para ROLE_USER si su RUT es más corto,
+        // ya que el campo estará deshabilitado y pre-cargado.
+        if (userRole !== 'ROLE_USER' && rut && !validarRutMinimo(rut)) {
             setError('El RUT debe tener al menos 4 dígitos para realizar la búsqueda');
             return;
         }
@@ -193,6 +207,23 @@ export default function Resumen() {
         fetchData();
     };
     
+    useEffect(() => {
+        // Este useEffect se encarga de llamar a fetchData cuando los filtros cambian,
+        // pero con lógica específica para ROLE_USER.
+        if (fechaInicio) { // Condición mínima: tener fecha de inicio
+            if (userRole === 'ROLE_USER') {
+                // Para ROLE_USER, buscamos automáticamente si su RUT (ya en el estado 'rut') está presente.
+                if (rut === loggedInUserRun && rut) { // Asegurarse que el rut en estado es el del usuario logueado
+                    fetchData();
+                }
+            } else {
+                // Para otros roles (ej. Admin), la búsqueda inicial o tras cambiar filtros NO es automática.
+                // Se requiere presionar el botón "Buscar".
+                // Si se quisiera carga automática para Admin también, se podría llamar fetchData() aquí.
+            }
+        }
+    }, [fechaInicio, fechaFin, rut, userRole, loggedInUserRun]); // Agregamos loggedInUserRun por si cambia (aunque no debería sin re-login)
+
     // Formatear RUT mientras se escribe - permitir búsqueda por números parciales
     const formatearRut = (value) => {
         // Si es solo números, permitir la búsqueda parcial
@@ -762,15 +793,16 @@ export default function Resumen() {
                                                 className="form-control"
                                                 id="rut"
                                                 value={rut}
-                                                onChange={e => setRut(formatearRut(e.target.value))}
+                                                onChange={(e) => userRole !== 'ROLE_USER' && setRut(formatearRut(e.target.value))}
                                                 placeholder="RUT empleado"
                                                 maxLength="12"
+                                                disabled={userRole === 'ROLE_USER'}
                                             />
                                             <label htmlFor="rut">RUT empleado</label>
                                         </div>
                                     </div>
                                     <div className="col-md-3 d-flex align-items-center">
-                                        <button type="submit" className="btn btn-primary w-100">
+                                        <button type="submit" className="btn btn-primary w-100" disabled={loading || (userRole !== 'ROLE_USER' && rut && !validarRutMinimo(rut))}>
                                             Buscar
                                         </button>
                                     </div>
@@ -819,7 +851,7 @@ export default function Resumen() {
                                                     <th className="text-end">H.E. 50%</th>
                                                     <th className="text-center">Estado</th>
                                                     <th>Observaciones</th>
-                                                    <th className="text-center">Editar</th>
+                                                    {userRole !== 'ROLE_USER' && <th className="text-center">Editar</th>}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -871,7 +903,17 @@ export default function Resumen() {
                                                                 {horasExtra50}
                                                             </td>
                                                             <td className="text-center">
-                                                                {savingState && registro.idAsistencia === savingStateId ? (
+                                                                {userRole === 'ROLE_USER' ? (
+                                                                    <span className={`badge ${ 
+                                                                        registro.estado === 'AUTORIZADO' 
+                                                                            ? 'text-bg-success' 
+                                                                            : registro.estado === 'RECHAZADO' 
+                                                                                ? 'text-bg-danger' 
+                                                                                : 'text-bg-warning'
+                                                                    }`}>
+                                                                        {registro.estado || 'PENDIENTE'}
+                                                                    </span>
+                                                                ) : savingState && registro.idAsistencia === savingStateId ? (
                                                                     <div className="spinner-border spinner-border-sm text-primary" role="status">
                                                                         <span className="visually-hidden">Guardando...</span>
                                                                     </div>
@@ -898,14 +940,16 @@ export default function Resumen() {
                                                                     {registro.observaciones || ''}
                                                                 </small>
                                                             </td>
-                                                            <td className="text-center">
-                                                                <button 
-                                                                    className="btn btn-sm btn-primary"
-                                                                    onClick={() => handleOpenModal(registro)}
-                                                                >
-                                                                    <i className="bi bi-pencil-square"></i>
-                                                                </button>
-                                                            </td>
+                                                            {userRole !== 'ROLE_USER' && (
+                                                                <td className="text-center">
+                                                                    <button 
+                                                                        className="btn btn-sm btn-primary"
+                                                                        onClick={() => handleOpenModal(registro)}
+                                                                    >
+                                                                        <i className="bi bi-pencil-square"></i>
+                                                                    </button>
+                                                                </td>
+                                                            )}
                                                         </tr>
                                                     );
                                                 })}

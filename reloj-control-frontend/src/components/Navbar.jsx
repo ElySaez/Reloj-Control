@@ -1,21 +1,36 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false)
     const location = useLocation()
+    const navigate = useNavigate();
+
+    // Obtener el rol del usuario
+    const userRole = localStorage.getItem('userRole');
+    console.log("Rol en Navbar:", userRole);
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('run');
+        localStorage.removeItem('userRole');
+        navigate('/login');
+        if (isOpen) setIsOpen(false);
+    };
 
     return (
         <nav className="bg-gray-900 border-b border-gray-800">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-14">
                     <div className="flex items-center">
-                        <Link to="/configuraciones" className="flex items-center mr-3 text-gray-400 hover:text-white" title="Configuraciones">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                        </Link>
+                        {userRole !== 'ROLE_USER' && (
+                            <Link to="/configuraciones" className="flex items-center mr-3 text-gray-400 hover:text-white" title="Configuraciones">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </Link>
+                        )}
                         <a href="/manual.pdf" download className="flex items-center mr-3 text-gray-400 hover:text-white" title="Descargar Manual de Usuario">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.755 4 3.92C16 12.805 14.928 14 12.102 14H12v2h.01M12 18h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -51,15 +66,17 @@ export default function Navbar() {
                     </div>
 
                     <div className="hidden md:flex items-center space-x-4">
-                        <Link 
-                            to="/importar" 
-                            className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
-                                ${location.pathname === '/importar' 
-                                    ? 'text-white bg-gray-800' 
-                                    : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
-                        >
-                            Importar
-                        </Link>
+                        {userRole !== 'ROLE_USER' && (
+                            <Link 
+                                to="/importar" 
+                                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                                    ${location.pathname === '/importar' 
+                                        ? 'text-white bg-gray-800' 
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                            >
+                                Importar
+                            </Link>
+                        )}
                         <Link 
                             to="/resumen" 
                             className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
@@ -78,23 +95,35 @@ export default function Navbar() {
                         >
                             Justificaciones
                         </Link>
+                        <button
+                            onClick={handleLogout}
+                            title="Cerrar Sesión"
+                            className="ml-2 flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-300 hover:text-white hover:bg-gray-800 transition-colors duration-150"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            <span className="ml-2 hidden lg:inline">Cerrar Sesión</span>
+                        </button>
                     </div>
                 </div>
 
                 <div 
-                    className={`${isOpen ? 'max-h-48' : 'max-h-0'} md:hidden overflow-hidden transition-all duration-200 ease-in-out`}
+                    className={`${isOpen ? 'max-h-60' : 'max-h-0'} md:hidden overflow-hidden transition-all duration-300 ease-in-out`}
                 >
                     <div className="px-2 pt-2 pb-3 space-y-1">
-                        <Link 
-                            to="/importar" 
-                            className={`block px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
-                                ${location.pathname === '/importar' 
-                                    ? 'text-white bg-gray-800' 
-                                    : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
-                            onClick={() => setIsOpen(false)}
-                        >
-                            Importar
-                        </Link>
+                        {userRole !== 'ROLE_USER' && (
+                            <Link 
+                                to="/importar" 
+                                className={`block px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                                    ${location.pathname === '/importar' 
+                                        ? 'text-white bg-gray-800' 
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                                onClick={() => setIsOpen(false)}
+                            >
+                                Importar
+                            </Link>
+                        )}
                         <Link 
                             to="/resumen" 
                             className={`block px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
@@ -115,6 +144,17 @@ export default function Navbar() {
                         >
                             Justificaciones
                         </Link>
+                        <button
+                            onClick={handleLogout}
+                            className="w-full text-left block px-3 py-2 text-sm font-medium rounded-md text-gray-300 hover:text-white hover:bg-gray-800 transition-colors duration-150"
+                        >
+                            <div className="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Cerrar Sesión
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>
