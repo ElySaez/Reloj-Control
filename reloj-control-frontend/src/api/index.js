@@ -469,4 +469,35 @@ export const getJustificacionesPorRutEmpleado = async (rutEmpleado) => {
         console.error('Error en getJustificacionesPorRutEmpleado:', error);
         throw error;
     }
+};
+
+// Nueva función para actualizar el estado de una justificación
+export const actualizarEstadoJustificacion = async (idJustificacion, nuevoEstado) => {
+    try {
+        const response = await fetch(`${API_URL}/justificaciones/${idJustificacion}?estado=${nuevoEstado}`, {
+            method: 'PUT',
+            headers: {
+                'Accept': 'application/json',
+                // Content-Type no es necesario para PUT sin body, pero si el backend lo requiere estrictamente para CORS o algo, se podría añadir application/json
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const errorMessage = errorData?.message || response.statusText || `Error HTTP: ${response.status}`;
+            const error = new Error(errorMessage);
+            error.response = {
+                status: response.status,
+                data: errorData || { message: errorMessage },
+            };
+            throw error;
+        }
+
+        // El backend devuelve la justificación actualizada
+        return response.json(); 
+
+    } catch (error) {
+        console.error('Error en actualizarEstadoJustificacion:', error);
+        throw error;
+    }
 }; 

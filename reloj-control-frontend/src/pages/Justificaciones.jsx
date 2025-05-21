@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { crearJustificacion, getJustificacionesPorRutEmpleado, API_URL } from '../api'
+import { crearJustificacion, getJustificacionesPorRutEmpleado, API_URL, actualizarEstadoJustificacion } from '../api'
 
 export default function Justificaciones() {
     const [formData, setFormData] = useState({
@@ -20,6 +20,7 @@ export default function Justificaciones() {
     const [loadingBusqueda, setLoadingBusqueda] = useState(false)
     const [errorBusqueda, setErrorBusqueda] = useState('')
     const [mensajeBusqueda, setMensajeBusqueda] = useState('')
+    const [loadingAccion, setLoadingAccion] = useState(null)
 
     const abrirModalSolicitud = () => {
         setMensajeFormulario('')
@@ -106,6 +107,7 @@ export default function Justificaciones() {
             if (resultado && resultado.length > 0) {
                 setJustificacionesEncontradas(resultado)
             } else {
+                setJustificacionesEncontradas([])
                 setMensajeBusqueda('No se encontraron justificaciones para el RUT proporcionado.')
             }
         } catch (error) {
@@ -113,6 +115,30 @@ export default function Justificaciones() {
             setJustificacionesEncontradas([])
         } finally {
             setLoadingBusqueda(false)
+        }
+    }
+
+    const handleActualizarEstado = async (idJustificacion, nuevoEstado) => {
+        setLoadingAccion(idJustificacion + '-' + nuevoEstado)
+        setErrorBusqueda('')
+        setMensajeBusqueda('')
+
+        try {
+            await actualizarEstadoJustificacion(idJustificacion, nuevoEstado)
+            if (rutBusqueda) {
+                const resultado = await getJustificacionesPorRutEmpleado(rutBusqueda)
+                if (resultado && resultado.length > 0) {
+                    setJustificacionesEncontradas(resultado)
+                } else {
+                    setJustificacionesEncontradas([])
+                    setMensajeBusqueda('No se encontraron justificaciones después de la actualización.')
+                }
+            }
+        } catch (error) {
+            console.error("Error al actualizar estado:", error)
+            setErrorBusqueda(`Error al actualizar estado: ${error.response?.data?.message || error.message}`)
+        } finally {
+            setLoadingAccion(null)
         }
     }
 
@@ -184,6 +210,7 @@ export default function Justificaciones() {
                                         <th scope="col" className="px-6 py-3">Motivo</th>
                                         <th scope="col" className="px-6 py-3">Estado</th>
                                         <th scope="col" className="px-6 py-3">Archivo</th>
+                                        <th scope="col" className="px-6 py-3">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -206,6 +233,42 @@ export default function Justificaciones() {
                                                     >
                                                         <span role="img" aria-label="Descargar archivo" style={{ fontSize: '1.2em' }}>📥</span>
                                                     </a>
+                                                ) : (
+                                                    '-'
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {just.estado === 'Pendiente' ? (
+                                                    <div className="flex items-center space-x-2">
+                                                        {loadingAccion === (just.idJustificacion + '-APROBADO') ? (
+                                                            <div className="spinner-border spinner-border-sm text-success" role="status"><span className="visually-hidden">Cargando...</span></div>
+                                                        ) : (
+                                                            <button 
+                                                                onClick={() => handleActualizarEstado(just.idJustificacion, 'APROBADO')}
+                                                                className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
+                                                                title="Aprobar justificación"
+                                                                disabled={loadingAccion !== null}
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        {loadingAccion === (just.idJustificacion + '-RECHAZADO') ? (
+                                                            <div className="spinner-border spinner-border-sm text-danger" role="status"><span className="visually-hidden">Cargando...</span></div>
+                                                        ) : (
+                                                            <button 
+                                                                onClick={() => handleActualizarEstado(just.idJustificacion, 'RECHAZADO')}
+                                                                className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
+                                                                title="Rechazar justificación"
+                                                                disabled={loadingAccion !== null}
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     '-'
                                                 )}
