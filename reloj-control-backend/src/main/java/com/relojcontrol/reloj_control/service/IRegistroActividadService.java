@@ -1,5 +1,9 @@
 package com.relojcontrol.reloj_control.service;
- 
+
+import com.relojcontrol.reloj_control.model.RegistroActividad;
+
+import java.util.List;
+
 public interface IRegistroActividadService {
-    void log(Integer idUsuario, String accion, String modulo, String ipOrigen);
-} 
+    List<RegistroActividad> obtenerRegistroDeActividadPorUsuario(String run);
+}

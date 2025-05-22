@@ -1,0 +1,57 @@
+# render.yaml – Sistema Reloj-Control (ANTU)
+
+databases:
+  - name: reloj-control-db
+    databaseName: relojcontroldb
+    user: relojcontrol
+    plan: free           # ← aquí sí se declara
+
+envVarGroups:
+  - name: reloj-control-common
+    envVars:
+      - key: TZ
+        value: America/Santiago
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:+UseG1GC"
+
+services:
+  # BACKEND ─ Spring Boot (Docker)
+  - type: web
+    name: reloj-control-backend
+    branch: developer
+    rootDir: reloj-control-backend
+    runtime: docker
+    dockerfilePath: reloj-control-backend/Dockerfile
+    envVars:
+      - fromGroup: reloj-control-common
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: reloj-control-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: reloj-control-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: reloj-control-db
+          property: password
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+
+  # FRONTEND ─ React + Vite (sitio estático)
+  - type: web
+    name: reloj-control-frontend
+    branch: developer
+    rootDir: reloj-control-frontend
+    runtime: static
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist
+    envVars:
+      - fromGroup: reloj-control-common
+    buildFilter:
+      paths:
+        - "reloj-control-frontend/**"
+    autoDeploy: true

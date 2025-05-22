@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { importarArchivo } from '../api' // Corregir la ruta de importación
 
 export default function Importar() {
     const [file, setFile] = useState(null)
@@ -45,17 +46,19 @@ export default function Importar() {
         }
 
         setIsLoading(true)
-        const form = new FormData()
-        form.append('file', file)
+        // No es necesario crear FormData aquí, importarArchivo se encarga si es necesario.
 
         try {
-            const res = await fetch('/api/importar', {
-                method: 'POST',
-                body: form
-            })
-            const text = await res.text()
-            if (!res.ok) throw new Error(text)
-            setMsg(text)
+            // Usar la función importarArchivo de api/index.js
+            const responseText = await importarArchivo(file); 
+            // Asumimos que importarArchivo devuelve el texto de la respuesta directamente
+            // o un objeto con un mensaje.
+            // Si devuelve un objeto: setMsg(responseText.message || responseText.toString());
+            // Si devuelve texto: setMsg(responseText);
+
+            // El backend devuelve el texto directamente, no un JSON.
+            // Si la respuesta es exitosa y es texto, no JSON:
+            setMsg(responseText); // Directamente el texto de la respuesta.
             setFile(null) // Reset file after successful upload
         } catch (e) {
             setMsg('Error: ' + e.message)

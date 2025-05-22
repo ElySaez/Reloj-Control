@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface ParametroSistemaRepository
         extends JpaRepository<ParametroSistema, Integer> {
     Optional<ParametroSistema> findByClave(String clave);
+
+    Optional<ParametroSistema> findByIdParametro(Long id);
 }

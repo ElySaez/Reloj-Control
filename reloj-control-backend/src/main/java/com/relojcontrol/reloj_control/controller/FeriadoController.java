@@ -4,6 +4,7 @@ import com.relojcontrol.reloj_control.model.Feriado;
 import com.relojcontrol.reloj_control.service.FeriadoService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,11 +22,17 @@ public class FeriadoController {
     }
 
     @GetMapping
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<List<Feriado>> listarFeriados() {
         return ResponseEntity.ok(feriadoService.listarTodos());
     }
 
     @PostMapping
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<?> agregarFeriado(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fecha,
             @RequestParam String descripcion) {
@@ -38,6 +45,9 @@ public class FeriadoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<?> eliminarFeriado(@PathVariable Long id) {
         try {
             feriadoService.eliminarFeriado(id);
@@ -48,12 +58,18 @@ public class FeriadoController {
     }
 
     @GetMapping("/verificar")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<Boolean> verificarFeriado(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fecha) {
         return ResponseEntity.ok(feriadoService.esFeriado(fecha));
     }
 
     @GetMapping("/rango")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<List<Feriado>> obtenerFeriadosEnRango(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate inicio,
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fin) {

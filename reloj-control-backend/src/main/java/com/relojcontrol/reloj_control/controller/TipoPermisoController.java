@@ -3,6 +3,7 @@ package com.relojcontrol.reloj_control.controller;
 import com.relojcontrol.reloj_control.model.TipoPermiso;
 import com.relojcontrol.reloj_control.repository.TipoPermisoRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,9 @@ public class TipoPermisoController {
     }
 
     @PostMapping
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public TipoPermiso crear(@RequestBody TipoPermiso tp) {
         return repo.save(tp);
     }
@@ -34,6 +38,9 @@ public class TipoPermisoController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<TipoPermiso> actualizar(@PathVariable Integer id,
                                                   @RequestBody TipoPermiso cambios) {
         return repo.findById(id).map(tp -> {
@@ -44,6 +51,9 @@ public class TipoPermisoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<Void> borrar(@PathVariable Integer id) {
         repo.deleteById(id);
         return ResponseEntity.noContent().build();

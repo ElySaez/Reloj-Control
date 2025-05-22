@@ -4,6 +4,7 @@ import com.relojcontrol.reloj_control.service.FileImportService;            // <
 import com.relojcontrol.reloj_control.service.RegistroActividadService;    // <— import para tu servicio de logs
 import jakarta.servlet.http.HttpServletRequest;                            // <— import para HttpServletRequest
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,23 +25,12 @@ public class ImportController {
     }
 
     @PostMapping("/importar")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
     public ResponseEntity<?> importar(@RequestParam("file") MultipartFile file) {
         try {
-            // 1) Importas el .dat
             importService.importarDat(file);
-
-            // 2) Grabas el log
-            // — Porahora se coloca un userId fijo, luego se cambia por la lógica real:
-            Integer userId = 40;
-            String ip      = request.getRemoteAddr();
-
-            logService.log(
-                    userId,
-                    "IMPORT_DAT",
-                    "ImportController",
-                    ip
-            );
-
             return ResponseEntity.ok("Importación exitosa");
         } catch (Exception e) {
             return ResponseEntity
