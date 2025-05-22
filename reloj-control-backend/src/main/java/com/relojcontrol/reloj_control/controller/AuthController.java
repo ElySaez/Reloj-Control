@@ -1,6 +1,6 @@
 package com.relojcontrol.reloj_control.controller;
 
-import com.relojcontrol.reloj_control.config.JwtUtil;
+import com.relojcontrol.reloj_control.config.seguridad.JwtUtil;
 import com.relojcontrol.reloj_control.service.DetalleUsuarioService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;

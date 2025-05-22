@@ -1,4 +1,4 @@
-package com.relojcontrol.reloj_control.config;
+package com.relojcontrol.reloj_control.config.seguridad;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 

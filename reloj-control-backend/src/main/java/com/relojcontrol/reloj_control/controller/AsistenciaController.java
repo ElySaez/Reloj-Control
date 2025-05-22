@@ -129,7 +129,7 @@ public class AsistenciaController {
             "hasRole('ADMIN') or @securityHelper.isEmpleadoOwner(authentication.name, #id)"
     )
     @GetMapping("/empleado/{id}")
-    public ResponseEntity<?> porEmpleado(@PathVariable("id") Long id) {
+    public ResponseEntity<?> obtieneAsistenciasPorEmpleado(@PathVariable("id") Long id) {
         try {
             return ResponseEntity.ok(asRepo.findAllByEmpleadoIdEmpleado(id));
         } catch (Exception e) {
@@ -156,7 +156,7 @@ public class AsistenciaController {
             "hasRole('ADMIN') or #rut == authentication.principal.username"
     )
     @GetMapping("/resumen")
-    public ResponseEntity<?> getResumen(
+    public ResponseEntity<?> obtenerResumen(
             @RequestParam(required = false) LocalDate inicio,
             @RequestParam(required = false) LocalDate fin,
             @RequestParam(required = false) String rut) {

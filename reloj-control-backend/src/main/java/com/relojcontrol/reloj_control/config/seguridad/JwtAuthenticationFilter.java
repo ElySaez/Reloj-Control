@@ -1,4 +1,4 @@
-package com.relojcontrol.reloj_control.config;
+package com.relojcontrol.reloj_control.config.seguridad;
 
 import com.relojcontrol.reloj_control.service.DetalleUsuarioService;
 import jakarta.servlet.FilterChain;

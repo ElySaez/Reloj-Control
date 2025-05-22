@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public class RegistroActividad {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_log")
     private Long idLog;
 
@@ -24,10 +24,11 @@ public class RegistroActividad {
     @Column(nullable = false, length = 100)
     private String modulo;
 
-    @Column(name = "ip_origen", length = 45)
+    @Column(name = "ip_origen", nullable = false, length = 45)
     private String ipOrigen;
 
-    public RegistroActividad() {}
+    public RegistroActividad() {
+    }
 
     public RegistroActividad(Integer idUsuario,
                              String accion,
@@ -41,16 +42,18 @@ public class RegistroActividad {
         this.ipOrigen   = ipOrigen;
     }
 
-    // getters / setters
+
+    // getters y setters
     public Long getIdLog() { return idLog; }
+    public void setIdLog(Long idLog) { this.idLog = idLog; }
     public Integer getIdUsuario() { return idUsuario; }
-    public void setIdUsuario(Integer u) { this.idUsuario = u; }
+    public void setIdUsuario(Integer idUsuario) { this.idUsuario = idUsuario; }
     public String getAccion() { return accion; }
-    public void setAccion(String a) { this.accion = a; }
+    public void setAccion(String accion) { this.accion = accion; }
     public LocalDateTime getFechaHora() { return fechaHora; }
-    public void setFechaHora(LocalDateTime f) { this.fechaHora = f; }
+    public void setFechaHora(LocalDateTime fechaHora) { this.fechaHora = fechaHora; }
     public String getModulo() { return modulo; }
-    public void setModulo(String m) { this.modulo = m; }
+    public void setModulo(String modulo) { this.modulo = modulo; }
     public String getIpOrigen() { return ipOrigen; }
-    public void setIpOrigen(String ip) { this.ipOrigen = ip; }
+    public void setIpOrigen(String ipOrigen) { this.ipOrigen = ipOrigen; }
 }
