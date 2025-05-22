@@ -356,6 +356,14 @@ export const getJustificacionesPorRutEmpleado = async (rutEmpleado) => {
     return hacerPeticionGet(`/justificaciones/empleado/${encodeURIComponent(rutEmpleado.trim())}`);
 };
 
+// Nueva función para obtener justificaciones por estado (para ROLE_ADMIN)
+export const getJustificacionesPorEstado = async (estado) => {
+    if (!estado || typeof estado !== 'string' || estado.trim() === '') {
+        throw new Error('El estado es requerido para buscar las justificaciones.');
+    }
+    return hacerPeticionGet(`/justificaciones?estado=${encodeURIComponent(estado.trim())}`);
+};
+
 // Nueva función para actualizar el estado de una justificación
 export const actualizarEstadoJustificacion = async (idJustificacion, nuevoEstado) => {
     const token = getToken();

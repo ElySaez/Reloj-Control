@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { crearJustificacion, getJustificacionesPorRutEmpleado, API_URL, actualizarEstadoJustificacion } from '../api'
+import { crearJustificacion, getJustificacionesPorRutEmpleado, API_URL, actualizarEstadoJustificacion, getJustificacionesPorEstado } from '../api'
 
 export default function Justificaciones() {
     const [formData, setFormData] = useState({
@@ -33,6 +33,51 @@ export default function Justificaciones() {
             setRutBusqueda(loggedInUserRun);
         }
     }, []); // Solo al montar
+
+    // Carga inicial de datos y por cambio de rol o RUT (para ROLE_USER)
+    useEffect(() => {
+        const cargarDatosIniciales = async () => {
+            if (userRole === 'ROLE_USER' && loggedInUserRun && rutBusqueda === loggedInUserRun && rutBusqueda.trim() !== '') {
+                setLoadingBusqueda(true);
+                setErrorBusqueda('');
+                setMensajeBusqueda('');
+                try {
+                    const resultado = await getJustificacionesPorRutEmpleado(loggedInUserRun);
+                    if (resultado && resultado.length > 0) {
+                        setJustificacionesEncontradas(resultado);
+                    } else {
+                        setJustificacionesEncontradas([]);
+                        setMensajeBusqueda('No tienes justificaciones registradas.');
+                    }
+                } catch (error) {
+                    setErrorBusqueda('Error al cargar tus justificaciones: ' + (error.response?.data?.message || error.message));
+                    setJustificacionesEncontradas([]);
+                } finally {
+                    setLoadingBusqueda(false);
+                }
+            } else if (userRole === 'ROLE_ADMIN') {
+                setLoadingBusqueda(true);
+                setErrorBusqueda('');
+                setMensajeBusqueda('');
+                try {
+                    const resultado = await getJustificacionesPorEstado('PENDIENTE');
+                    if (resultado && resultado.length > 0) {
+                        setJustificacionesEncontradas(resultado);
+                    } else {
+                        setJustificacionesEncontradas([]);
+                        setMensajeBusqueda('No se encontraron justificaciones con estado PENDIENTE.');
+                    }
+                } catch (error) {
+                    setErrorBusqueda('Error al cargar justificaciones pendientes: ' + (error.response?.data?.message || error.message));
+                    setJustificacionesEncontradas([]);
+                } finally {
+                    setLoadingBusqueda(false);
+                }
+            }
+        };
+
+        cargarDatosIniciales();
+    }, [userRole, loggedInUserRun, rutBusqueda]); // Ejecutar si cambia el rol, el run del usuario logueado o el rut de búsqueda (para ROLE_USER)
 
     const abrirModalSolicitud = () => {
         setMensajeFormulario('')
@@ -160,14 +205,6 @@ export default function Justificaciones() {
         }
     }
 
-    useEffect(() => {
-        // Carga automática de justificaciones para ROLE_USER cuando rutBusqueda (ya seteado con su RUN) está listo.
-        if (userRole === 'ROLE_USER' && rutBusqueda === loggedInUserRun && rutBusqueda.trim() !== '') {
-            handleBuscarJustificaciones(); // No pasamos 'e' ya que no es un evento de formulario
-        }
-        // Para otros roles, la búsqueda es manual a través del botón.
-    }, [rutBusqueda, userRole, loggedInUserRun]); // Dependencias clave
-
     const handleActualizarEstado = async (idJustificacion, nuevoEstado) => {
         setLoadingAccion(idJustificacion + '-' + nuevoEstado)
         setErrorBusqueda('')
@@ -175,20 +212,44 @@ export default function Justificaciones() {
 
         try {
             await actualizarEstadoJustificacion(idJustificacion, nuevoEstado)
-            if (rutBusqueda) {
-                const resultado = await getJustificacionesPorRutEmpleado(rutBusqueda)
-                if (resultado && resultado.length > 0) {
-                    setJustificacionesEncontradas(resultado)
+            
+            // Lógica de recarga mejorada:
+            setLoadingBusqueda(true); // Indicar que estamos recargando
+            let resultado;
+            if (userRole === 'ROLE_ADMIN') {
+                if (rutBusqueda && rutBusqueda.trim() !== '') {
+                    // Si el admin había filtrado por RUT, recargar esa búsqueda
+                    resultado = await getJustificacionesPorRutEmpleado(rutBusqueda.trim());
                 } else {
-                    setJustificacionesEncontradas([])
-                    setMensajeBusqueda('No se encontraron justificaciones después de la actualización.')
+                    // Si el admin no filtró por RUT, recargar las pendientes (vista por defecto)
+                    resultado = await getJustificacionesPorEstado('PENDIENTE');
+                }
+            } else if (userRole === 'ROLE_USER') {
+                // Para ROLE_USER, siempre recargar sus propias justificaciones
+                // (Aunque este flujo de actualizar estado no debería ser accesible para ROLE_USER directamente)
+                if (loggedInUserRun) {
+                    resultado = await getJustificacionesPorRutEmpleado(loggedInUserRun);
                 }
             }
+
+            if (resultado && resultado.length > 0) {
+                setJustificacionesEncontradas(resultado);
+                setMensajeBusqueda('Estado actualizado y lista refrescada.');
+            } else {
+                setJustificacionesEncontradas([]);
+                if (userRole === 'ROLE_ADMIN' && !(rutBusqueda && rutBusqueda.trim() !== '')){
+                    setMensajeBusqueda('No quedan justificaciones pendientes.');
+                } else {
+                    setMensajeBusqueda('No se encontraron justificaciones después de la actualización.');
+                }
+            }
+
         } catch (error) {
             console.error("Error al actualizar estado:", error)
             setErrorBusqueda(`Error al actualizar estado: ${error.response?.data?.message || error.message}`)
         } finally {
             setLoadingAccion(null)
+            setLoadingBusqueda(false); // Terminar estado de carga
         }
     }
 
@@ -339,7 +400,7 @@ export default function Justificaciones() {
                                             </td>
                                             {userRole !== 'ROLE_USER' && (
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    {just.estado === 'Pendiente' ? (
+                                                    {just.estado === 'PENDIENTE' ? (
                                                         <div className="flex items-center space-x-2">
                                                             {loadingAccion === (just.idJustificacion + '-APROBADO') ? (
                                                                 <div className="spinner-border spinner-border-sm text-success" role="status"><span className="visually-hidden">Cargando...</span></div>
