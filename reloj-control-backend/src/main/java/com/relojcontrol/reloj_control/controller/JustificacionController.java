@@ -28,8 +28,16 @@ public class JustificacionController {
     @PreAuthorize(
             "hasRole('ADMIN') or #rutEmpleado == authentication.principal.username"
     )
-    public List<JustificacionListadoDTO> listar(@PathVariable String rutEmpleado) {
+    public List<JustificacionListadoDTO> listarPorEmpleado(@PathVariable String rutEmpleado) {
         return justificacionService.listar(rutEmpleado).stream().map(JustificacionListadoDTO::new).toList();
+    }
+
+    @GetMapping("")
+    @PreAuthorize(
+            "hasRole('ADMIN')"
+    )
+    public List<JustificacionListadoDTO> listadoCompletoPorEstado(@RequestParam(name = "estado") EstadoJustificacionEnum estadoJustificacion) {
+        return justificacionService.listar(estadoJustificacion).stream().map(JustificacionListadoDTO::new).toList();
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

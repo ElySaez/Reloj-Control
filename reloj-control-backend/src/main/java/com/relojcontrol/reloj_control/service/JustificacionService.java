@@ -73,7 +73,7 @@ public class JustificacionService implements IJustificacionService{
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        justificacion.setEstado("Pendiente");
+        justificacion.setEstado("PENDIENTE");
 
         return justificacionRepository.save(justificacion);
     }
@@ -87,9 +87,9 @@ public class JustificacionService implements IJustificacionService{
     @Transactional
     public Justificacion actualizarEstadoJustificacion(Long id, EstadoJustificacionEnum estadoJustificacion) {
         Justificacion justificacion = getById(id);
-        if(justificacion.getEstado().equals(EstadoJustificacionEnum.EN_PROCESO.getDescripcion())){
+        if(!justificacion.getEstado().equals(EstadoJustificacionEnum.PENDIENTE.getDescripcion())){
             justificacion.setMotivo(estadoJustificacion.getDescripcion());
-            throw new BadRequestException("Solo se pueden actualizar justificaciones en estado EN PROCESO");
+            throw new BadRequestException("Solo se pueden actualizar justificaciones en estado PENDIENTE");
         }
 
         if(estadoJustificacion.getDescripcion().equals(EstadoJustificacionEnum.APROBADO.getDescripcion())) {
@@ -97,6 +97,11 @@ public class JustificacionService implements IJustificacionService{
         }
         justificacion.setEstado(estadoJustificacion.getDescripcion());
         return justificacionRepository.save(justificacion);
+    }
+
+    @Override
+    public List<Justificacion> listar(EstadoJustificacionEnum estadoJustificacion) {
+        return justificacionRepository.findAllByEstado(estadoJustificacion.getDescripcion());
     }
 
     private void validarSolapamiento(

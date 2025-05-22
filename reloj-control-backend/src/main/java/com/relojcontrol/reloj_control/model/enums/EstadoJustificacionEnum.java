@@ -3,7 +3,7 @@ package com.relojcontrol.reloj_control.model.enums;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum EstadoJustificacionEnum {
-    EN_PROCESO("PENDIENTE"),
+    PENDIENTE("PENDIENTE"),
     APROBADO("APROBADO"),
     RECHAZADO("RECHAZADO");
 

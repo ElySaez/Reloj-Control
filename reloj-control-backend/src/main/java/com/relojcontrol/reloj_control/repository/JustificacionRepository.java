@@ -1,6 +1,7 @@
 package com.relojcontrol.reloj_control.repository;
 
 import com.relojcontrol.reloj_control.model.Justificacion;
+import com.relojcontrol.reloj_control.model.enums.EstadoJustificacionEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -27,4 +28,6 @@ public interface JustificacionRepository extends JpaRepository<Justificacion,Int
             @Param("idEmpleado") Long idEmpleado,
             @Param("inicio") LocalDate inicio,
             @Param("fin")    LocalDate fin);
+
+    List<Justificacion> findAllByEstado(String estadoJustificacion);
 }
