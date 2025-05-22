@@ -30,21 +30,7 @@ public class ImportController {
     )
     public ResponseEntity<?> importar(@RequestParam("file") MultipartFile file) {
         try {
-            // 1) Importas el .dat
             importService.importarDat(file);
-
-            // 2) Grabas el log
-            // — Porahora se coloca un userId fijo, luego se cambia por la lógica real:
-            Integer userId = 40;
-            String ip      = request.getRemoteAddr();
-
-            logService.log(
-                    userId,
-                    "IMPORT_DAT",
-                    "ImportController",
-                    ip
-            );
-
             return ResponseEntity.ok("Importación exitosa");
         } catch (Exception e) {
             return ResponseEntity

@@ -47,7 +47,7 @@ public class RegistroAspect {
 
         RegistroActividad log = new RegistroActividad();
         log.setIdUsuario(usuario.map(Usuario::getIdUsuario).orElse(null));
-        log.setAccion(jp.getSignature().getName().toUpperCase());
+        log.setAccion(this.camelToSnake(jp.getSignature().getName()));
         log.setFechaHora(LocalDateTime.now());
         log.setModulo(this.obtenerNombreControlador(jp.getSignature().getDeclaringTypeName()));
         log.setIpOrigen(request.getRemoteAddr());
@@ -58,5 +58,11 @@ public class RegistroAspect {
     private String obtenerNombreControlador(String nombreCompleto){
         return nombreCompleto.substring(
                 nombreCompleto.lastIndexOf("controller.") + "controller.".length());
+    }
+
+    private String camelToSnake(String camelCase) {
+        return camelCase
+                .replaceAll("([a-z])([A-Z])", "$1_$2")
+                .toUpperCase();
     }
 }
