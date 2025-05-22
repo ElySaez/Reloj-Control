@@ -77,6 +77,17 @@ export default function Navbar() {
                                 Importar
                             </Link>
                         )}
+                        {userRole === 'ROLE_ADMIN' && (
+                            <Link 
+                                to="/actividad" 
+                                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                                    ${location.pathname === '/actividad' 
+                                        ? 'text-white bg-gray-800' 
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                            >
+                                Actividad
+                            </Link>
+                        )}
                         <Link 
                             to="/resumen" 
                             className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
@@ -122,6 +133,18 @@ export default function Navbar() {
                                 onClick={() => setIsOpen(false)}
                             >
                                 Importar
+                            </Link>
+                        )}
+                        {userRole === 'ROLE_ADMIN' && (
+                            <Link 
+                                to="/actividad" 
+                                className={`block px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                                    ${location.pathname === '/actividad' 
+                                        ? 'text-white bg-gray-800' 
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                                onClick={() => setIsOpen(false)}
+                            >
+                                Actividad
                             </Link>
                         )}
                         <Link 

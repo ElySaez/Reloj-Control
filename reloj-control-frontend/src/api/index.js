@@ -427,4 +427,13 @@ export const getAtrasos = async (fechaInicio, fechaFin, horario) => {
         console.error('Error en getAtrasos:', error);
         throw error;
     }
+};
+
+// Nueva función para obtener logs de actividad por RUN
+export const getActividadPorRun = async (run) => {
+    if (!run || typeof run !== 'string' || run.trim() === '') {
+        throw new Error('El RUN es requerido para buscar la actividad.');
+    }
+    // El token ya se incluye automáticamente por hacerPeticionGet
+    return hacerPeticionGet(`/actividad/${encodeURIComponent(run.trim())}`);
 }; 

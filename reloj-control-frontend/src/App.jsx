@@ -6,6 +6,7 @@ import Resumen from './pages/Resumen'
 import Justificaciones from './pages/Justificaciones'
 import Configuraciones from './pages/Configuraciones'
 import LoginPage from './pages/LoginPage'
+import ActividadPage from './pages/Actividad'
 
 // Componente para proteger rutas
 const ProtectedRoute = () => {
@@ -42,6 +43,7 @@ export default function App() {
                         <Route path="resumen" element={<Resumen />} />
                         <Route path="justificaciones" element={<Justificaciones />} />
                         <Route path="configuraciones" element={<Configuraciones />} />
+                        <Route path="actividad" element={<ActividadPage />} />
                     </Route>
                     
                     {/* Fallback o página 404 si es necesario */}
